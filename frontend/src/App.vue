@@ -1745,8 +1745,9 @@ h1 {
   display: grid;
   gap: 12px;
   margin-bottom: 16px;
-  background: linear-gradient(160deg, rgba(14, 29, 26, 0.95), rgba(10, 21, 19, 0.95));
-  box-shadow: 0 16px 36px rgba(2, 12, 11, 0.3);
+  background: linear-gradient(160deg, rgba(20, 48, 40, 0.96), rgba(13, 33, 29, 0.96));
+  border-color: #3f8f71;
+  box-shadow: 0 18px 40px rgba(2, 16, 13, 0.35), inset 0 0 0 1px rgba(87, 188, 145, 0.2);
 }
 
 .setup-heading {
@@ -1756,13 +1757,17 @@ h1 {
   gap: 12px;
 }
 
+.setup-heading h3 {
+  color: #d9ffec;
+}
+
 .setup-progress {
   font-size: 0.78rem;
   border-radius: 999px;
-  border: 1px solid #326754;
-  background: rgba(21, 60, 48, 0.48);
+  border: 1px solid #52ab86;
+  background: rgba(32, 97, 74, 0.58);
   padding: 3px 9px;
-  color: #bbe9d2;
+  color: #dbfff0;
 }
 
 .setup-grid {
@@ -1778,10 +1783,10 @@ h1 {
 }
 
 .setup-step {
-  border: 1px solid #33574b;
+  border: 1px solid #3f7f67;
   border-radius: 12px;
   padding: 10px;
-  background: linear-gradient(180deg, rgba(12, 24, 22, 0.92), rgba(10, 20, 19, 0.9));
+  background: linear-gradient(180deg, rgba(16, 36, 31, 0.94), rgba(12, 27, 24, 0.92));
   display: grid;
   gap: 10px;
 }
@@ -1789,19 +1794,19 @@ h1 {
 .setup-step h4 {
   margin: 0;
   font-size: 0.9rem;
-  color: #d3efe2;
+  color: #e4fff3;
 }
 
 .setup-step[data-done="true"] {
-  border-color: #3c936d;
-  background: linear-gradient(180deg, rgba(20, 66, 50, 0.68), rgba(15, 47, 38, 0.62));
+  border-color: #49bf8e;
+  background: linear-gradient(180deg, rgba(24, 86, 62, 0.75), rgba(17, 61, 45, 0.68));
 }
 
 .onboarding-progress {
   height: 8px;
   border-radius: 999px;
-  border: 1px solid #315d50;
-  background: rgba(10, 20, 19, 0.9);
+  border: 1px solid #4e9f7f;
+  background: rgba(13, 31, 26, 0.92);
   overflow: hidden;
 }
 
@@ -1816,7 +1821,7 @@ h1 {
 
 .setup-copy {
   margin: 0;
-  color: #95b6a9;
+  color: #b9d8cc;
   font-size: 0.81rem;
   line-height: 1.45;
 }
