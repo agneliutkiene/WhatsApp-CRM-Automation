@@ -19,6 +19,7 @@ const CALENDAR_MONTHS = [
 ];
 const CALENDAR_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const VALID_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const ONBOARDING_STORAGE_KEY = "wa_crm_onboarding_v1";
 
 const loading = ref(false);
 const error = ref("");
@@ -109,9 +110,44 @@ const wordpressLead = reactive({
   message: "",
   sourceUrl: "https://example.com/contact"
 });
+const onboardingState = reactive({
+  automationSaved: false,
+  leadAdded: false
+});
 
 const states = ["ALL", "NEW", "FOLLOW_UP", "CLOSED"];
 const isCrmView = computed(() => currentView.value === "crm");
+const onboardingSteps = computed(() => [
+  {
+    id: "connect",
+    title: "Connect WhatsApp API",
+    done: whatsappConnected.value,
+    hint: "Add phone number ID, access token, and verify token from Meta API setup.",
+    cta: "Connect now",
+    action: openWhatsAppModal
+  },
+  {
+    id: "automation",
+    title: "Save automation rules",
+    done: onboardingState.automationSaved,
+    hint: "Choose templates and business hours, then click Save automation.",
+    cta: "Open automation",
+    action: () => scrollToSection("automations")
+  },
+  {
+    id: "lead",
+    title: "Push first lead to CRM",
+    done: onboardingState.leadAdded,
+    hint: "Open CRM window and push one lead from Lead -> WhatsApp CRM form.",
+    cta: "Open CRM",
+    action: openCrmWindow
+  }
+]);
+const onboardingCompletedCount = computed(() => onboardingSteps.value.filter((step) => step.done).length);
+const onboardingProgressPercent = computed(() =>
+  Math.round((onboardingCompletedCount.value / onboardingSteps.value.length) * 100)
+);
+const onboardingComplete = computed(() => onboardingCompletedCount.value >= onboardingSteps.value.length);
 
 const selectedMessages = computed(() => selectedConversation.value?.messages || []);
 const selectedNotes = computed(() => selectedConversation.value?.notes || []);
@@ -530,6 +566,36 @@ const formatLeadSource = (source) => {
   return source || "Unknown";
 };
 
+const hydrateOnboardingState = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(ONBOARDING_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    onboardingState.automationSaved = Boolean(parsed?.automationSaved);
+    onboardingState.leadAdded = Boolean(parsed?.leadAdded);
+  } catch (err) {
+    // ignore corrupted local onboarding state
+  }
+};
+
+const persistOnboardingState = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const payload = {
+    automationSaved: onboardingState.automationSaved,
+    leadAdded: onboardingState.leadAdded
+  };
+  window.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(payload));
+};
+
 const applySuggestedCredentials = () => {
   if (!whatsappConfig.verifyToken.trim()) {
     whatsappConfig.verifyToken = "whatsapp-crm-verify-2026";
@@ -792,6 +858,8 @@ const saveAutomation = async () => {
 
     const safety = await api.getAutomationSafety();
     applyAutomationSafety(safety || {});
+    onboardingState.automationSaved = true;
+    persistOnboardingState();
     showSuccess("Automation saved.");
   } catch (err) {
     setError(err);
@@ -811,6 +879,8 @@ const submitWordPressLead = async () => {
     wordpressLead.name = "";
     wordpressLead.phone = "";
     wordpressLead.message = "";
+    onboardingState.leadAdded = true;
+    persistOnboardingState();
 
     const insertedConversationId = data?.conversation?.id || "";
 
@@ -883,6 +953,7 @@ watch(selectedConversationId, async () => {
 
 const initializeDashboard = async () => {
   initializeView();
+  hydrateOnboardingState();
 
   try {
     const health = await api.getHealth();
@@ -926,10 +997,12 @@ onMounted(initializeDashboard);
         </p>
       </div>
       <div class="hero-actions">
-        <span class="connection-pill" :data-connected="whatsappConnected">
-          {{ whatsappConnected ? "WhatsApp connected" : "WhatsApp not connected" }}
-        </span>
-        <button class="connect-whatsapp" @click="openWhatsAppModal">Connect your WhatsApp</button>
+        <div class="connect-stack">
+          <button class="connect-whatsapp" @click="openWhatsAppModal">Connect your WhatsApp</button>
+          <small class="connection-status" :data-connected="whatsappConnected">
+            {{ whatsappConnected ? "WhatsApp connected" : "WhatsApp not connected" }}
+          </small>
+        </div>
         <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
         <button v-if="authRequired" class="refresh" @click="lockDashboard">Lock</button>
       </div>
@@ -939,6 +1012,36 @@ onMounted(initializeDashboard);
     <p v-if="success" class="success-banner">{{ success }}</p>
 
     <template v-if="!isCrmView">
+      <section v-if="!onboardingComplete" class="card setup-card">
+        <div class="setup-heading">
+          <h3>Onboarding checklist</h3>
+          <span class="setup-progress">{{ onboardingCompletedCount }}/{{ onboardingSteps.length }} completed</span>
+        </div>
+        <div
+          class="onboarding-progress"
+          role="progressbar"
+          :aria-valuenow="onboardingProgressPercent"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span class="onboarding-progress-fill" :style="{ width: `${onboardingProgressPercent}%` }"></span>
+        </div>
+        <div class="setup-step-grid">
+          <article v-for="step in onboardingSteps" :key="step.id" class="setup-step" :data-done="step.done">
+            <h4>{{ step.title }}</h4>
+            <p class="setup-copy">{{ step.hint }}</p>
+            <div class="setup-actions">
+              <button :class="{ primary: !step.done }" @click="step.action">
+                {{ step.done ? "Review" : step.cta }}
+              </button>
+              <span class="feature-label" :data-enabled="step.done">
+                {{ step.done ? "DONE" : "PENDING" }}
+              </span>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="workspace" id="inbox">
       <aside class="inbox-panel">
         <div class="toolbar-row">
@@ -1459,12 +1562,13 @@ onMounted(initializeDashboard);
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  background: rgba(12, 22, 20, 0.96);
+  background: linear-gradient(180deg, rgba(14, 28, 25, 0.96), rgba(10, 19, 18, 0.95));
   border: 1px solid var(--line-main);
   border-radius: 18px;
   padding: 13px 17px;
   margin-bottom: 16px;
   backdrop-filter: none;
+  box-shadow: 0 16px 40px rgba(1, 10, 9, 0.34);
 }
 
 .brand {
@@ -1514,34 +1618,40 @@ onMounted(initializeDashboard);
   gap: 24px;
   align-items: start;
   margin-bottom: 16px;
-  background: rgba(12, 22, 20, 0.96);
+  background: linear-gradient(165deg, rgba(14, 31, 27, 0.95), rgba(10, 21, 20, 0.94));
   border: 1px solid var(--line-main);
   border-radius: 18px;
   padding: 18px;
   backdrop-filter: none;
+  box-shadow: 0 18px 40px rgba(2, 12, 11, 0.36);
 }
 
 .hero-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
-.connection-pill {
-  font-size: 0.72rem;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid #31624f;
-  background: rgba(27, 73, 58, 0.46);
-  color: #b4ead0;
+.connect-stack {
+  display: grid;
+  gap: 5px;
+  align-items: flex-start;
 }
 
-.connection-pill[data-connected="false"] {
-  border-color: #3d4f49;
-  background: rgba(22, 31, 30, 0.72);
-  color: #9badab;
+.connection-status {
+  font-size: 0.73rem;
+  color: #9db7ac;
+  margin-left: 2px;
+}
+
+.connection-status[data-connected="true"] {
+  color: #89edbc;
+}
+
+.connection-status[data-connected="false"] {
+  color: #95a9a1;
 }
 
 h1 {
@@ -1560,31 +1670,35 @@ h1 {
 
 .refresh {
   border: 1px solid #365949;
-  background: rgba(24, 42, 36, 0.92);
+  background: linear-gradient(180deg, rgba(27, 46, 40, 0.95), rgba(18, 34, 30, 0.95));
   color: #b7d6c8;
   border-radius: 11px;
   font-size: 0.86rem;
   padding: 7px 12px;
-  transition: border-color 0.16s ease, color 0.16s ease;
+  transition: border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+  box-shadow: 0 10px 22px rgba(3, 13, 12, 0.28);
 }
 
 .connect-whatsapp {
   border: 1px solid #29a66d;
-  background: #1f8f5e;
+  background: linear-gradient(135deg, #1d9a63, #29c478);
   color: #fff;
   border-radius: 11px;
   font-size: 0.86rem;
   padding: 7px 12px;
-  transition: border-color 0.16s ease, background 0.16s ease;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+  box-shadow: 0 12px 24px rgba(18, 113, 72, 0.36);
 }
 
 .refresh:hover {
   border-color: #4a7a65;
   color: #d1ece1;
+  transform: translateY(-1px);
 }
 
 .connect-whatsapp:hover {
-  background: #218a5c;
+  background: linear-gradient(135deg, #22a96c, #32cb82);
+  transform: translateY(-1px);
 }
 
 .error-banner {
@@ -1609,7 +1723,8 @@ h1 {
   display: grid;
   gap: 12px;
   margin-bottom: 16px;
-  background: rgba(12, 22, 20, 0.96);
+  background: linear-gradient(160deg, rgba(14, 29, 26, 0.95), rgba(10, 21, 19, 0.95));
+  box-shadow: 0 16px 36px rgba(2, 12, 11, 0.3);
 }
 
 .setup-heading {
@@ -1644,7 +1759,7 @@ h1 {
   border: 1px solid #33574b;
   border-radius: 12px;
   padding: 10px;
-  background: rgba(11, 21, 20, 0.88);
+  background: linear-gradient(180deg, rgba(12, 24, 22, 0.92), rgba(10, 20, 19, 0.9));
   display: grid;
   gap: 10px;
 }
@@ -1657,7 +1772,24 @@ h1 {
 
 .setup-step[data-done="true"] {
   border-color: #3c936d;
-  background: rgba(20, 62, 48, 0.62);
+  background: linear-gradient(180deg, rgba(20, 66, 50, 0.68), rgba(15, 47, 38, 0.62));
+}
+
+.onboarding-progress {
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid #315d50;
+  background: rgba(10, 20, 19, 0.9);
+  overflow: hidden;
+}
+
+.onboarding-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #23a86d, #39d98d);
+  box-shadow: 0 0 18px rgba(33, 171, 108, 0.5);
+  transition: width 0.25s ease;
 }
 
 .setup-copy {
@@ -1712,7 +1844,7 @@ h1 {
   border: 1px solid #2a4c40;
   border-radius: 14px;
   padding: 14px;
-  box-shadow: none;
+  box-shadow: 0 12px 28px rgba(2, 10, 10, 0.25);
 }
 
 .stats-grid h2 {
@@ -1832,17 +1964,17 @@ h1 {
 
 .inbox-panel,
 .card {
-  background: rgba(12, 22, 20, 0.96);
+  background: linear-gradient(165deg, rgba(14, 30, 27, 0.95), rgba(9, 20, 19, 0.95));
   border: 1px solid #2a4d41;
   border-radius: 16px;
   padding: 14px;
-  box-shadow: none;
+  box-shadow: 0 14px 34px rgba(1, 9, 9, 0.28);
 }
 
 .conversation-card {
-  background: rgba(13, 24, 22, 0.98);
-  border-color: #3a725d;
-  box-shadow: none;
+  background: linear-gradient(165deg, rgba(12, 30, 27, 0.98), rgba(8, 21, 20, 0.98));
+  border-color: #3f896f;
+  box-shadow: 0 18px 40px rgba(3, 17, 14, 0.36), 0 0 0 1px rgba(48, 138, 97, 0.22);
 }
 
 .conversation-card h3 {
@@ -2035,7 +2167,7 @@ h3 {
   display: grid;
   grid-template-columns: minmax(170px, 220px) minmax(280px, 420px) auto;
   gap: 10px;
-  align-items: end;
+  align-items: start;
   margin-bottom: 10px;
 }
 
@@ -2046,7 +2178,7 @@ h3 {
 
 .meta-action {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: flex-start;
 }
 
@@ -2136,7 +2268,7 @@ h3 {
   border-radius: 14px;
   padding: 10px;
   z-index: 72;
-  box-shadow: none;
+  box-shadow: 0 14px 32px rgba(2, 10, 10, 0.34);
 }
 
 .calendar-header {
@@ -2221,7 +2353,7 @@ h3 {
   border-radius: 14px;
   padding: 8px;
   z-index: 72;
-  box-shadow: none;
+  box-shadow: 0 14px 32px rgba(2, 10, 10, 0.34);
   display: grid;
   gap: 6px;
 }
@@ -2335,23 +2467,24 @@ h3 {
 .template-strip button,
 button {
   border: 1px solid #375a4e;
-  background: rgba(23, 37, 33, 0.88);
+  background: linear-gradient(180deg, rgba(27, 45, 40, 0.9), rgba(18, 33, 30, 0.9));
   border-radius: 10px;
   padding: 6px 11px;
   font-size: 0.86rem;
   color: #b3decb;
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 10px 20px rgba(1, 9, 8, 0.22);
 }
 
 button.primary {
   border-color: #2ea46e;
-  background: #1f8f5e;
+  background: linear-gradient(135deg, #1f9d64, #2ac479);
   color: white;
-  box-shadow: none;
+  box-shadow: 0 12px 26px rgba(18, 111, 72, 0.34);
 }
 
 button:hover {
-  transform: none;
+  transform: translateY(-1px);
   border-color: #4a7b66;
 }
 
@@ -2531,7 +2664,7 @@ button.primary:hover {
   font-size: 0.8rem;
   text-decoration: none;
   padding: 7px 11px;
-  box-shadow: none;
+  box-shadow: 0 10px 24px rgba(2, 8, 8, 0.3);
 }
 
 .field-hint {
@@ -2553,11 +2686,11 @@ button.primary:hover {
 
 .modal-card {
   width: min(680px, 100%);
-  background: rgba(12, 22, 20, 0.98);
+  background: linear-gradient(175deg, rgba(15, 30, 27, 0.98), rgba(10, 20, 19, 0.98));
   border: 1px solid #315448;
   border-radius: 18px;
   padding: 18px;
-  box-shadow: none;
+  box-shadow: 0 24px 50px rgba(1, 7, 7, 0.42);
 }
 
 .modal-grid {
