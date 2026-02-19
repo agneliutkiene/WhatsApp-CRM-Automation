@@ -92,7 +92,6 @@ const states = ["ALL", "NEW", "FOLLOW_UP", "CLOSED"];
 
 const selectedMessages = computed(() => selectedConversation.value?.messages || []);
 const selectedNotes = computed(() => selectedConversation.value?.notes || []);
-const calendarMonthLabel = computed(() => `${CALENDAR_MONTHS[calendarMonth.value]} ${FOLLOW_UP_YEAR}`);
 const canGoPreviousMonth = computed(() => calendarMonth.value > 0);
 const canGoNextMonth = computed(() => calendarMonth.value < 11);
 const followUpTimeOptions = computed(() =>
@@ -221,6 +220,13 @@ const goToPreviousMonth = () => {
 const goToNextMonth = () => {
   if (calendarMonth.value < 11) {
     calendarMonth.value += 1;
+  }
+};
+
+const setCalendarMonthFromSelect = (event) => {
+  const nextMonth = Number(event.target.value);
+  if (Number.isInteger(nextMonth) && nextMonth >= 0 && nextMonth <= 11) {
+    calendarMonth.value = nextMonth;
   }
 };
 
@@ -604,6 +610,7 @@ onMounted(refreshDashboard);
                     <span class="time-arrow">⌄</span>
                   </span>
                 </button>
+                <small class="picker-hint">Click time to open hour list</small>
                 <div v-if="showFollowUpTimeDropdown" class="time-popover">
                   <button
                     v-for="timeOption in followUpTimeOptions"
@@ -619,7 +626,14 @@ onMounted(refreshDashboard);
                 <div v-if="showFollowUpCalendar" class="calendar-popover">
                   <div class="calendar-header">
                     <button type="button" @click="goToPreviousMonth" :disabled="!canGoPreviousMonth">‹</button>
-                    <strong>{{ calendarMonthLabel }}</strong>
+                    <div class="calendar-title">
+                      <select class="calendar-month-select" :value="calendarMonth" @change="setCalendarMonthFromSelect">
+                        <option v-for="(month, monthIndex) in CALENDAR_MONTHS" :key="month" :value="monthIndex">
+                          {{ month }}
+                        </option>
+                      </select>
+                      <span class="calendar-year">{{ FOLLOW_UP_YEAR }}</span>
+                    </div>
                     <button type="button" @click="goToNextMonth" :disabled="!canGoNextMonth">›</button>
                   </div>
                   <div class="calendar-weekdays">
@@ -1239,6 +1253,11 @@ h3 {
   line-height: 1;
 }
 
+.picker-hint {
+  font-size: 0.72rem;
+  color: #7ea598;
+}
+
 .calendar-icon {
   opacity: 0.85;
 }
@@ -1261,6 +1280,7 @@ h3 {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 8px;
 }
 
 .calendar-header button {
@@ -1268,9 +1288,26 @@ h3 {
   padding: 4px 8px;
 }
 
-.calendar-header strong {
-  font-size: 0.9rem;
+.calendar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calendar-month-select {
+  min-width: 130px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  font-size: 0.82rem;
+}
+
+.calendar-year {
+  font-size: 0.82rem;
   color: #bfffdc;
+  border: 1px solid #245245;
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: rgba(12, 29, 21, 0.55);
 }
 
 .calendar-weekdays,
