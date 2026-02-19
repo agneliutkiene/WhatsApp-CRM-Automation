@@ -53,6 +53,7 @@ const messageInput = ref("");
 const followUpDate = ref("");
 const followUpTime = ref("09:00");
 const showFollowUpCalendar = ref(false);
+const showFollowUpTimeDropdown = ref(false);
 const calendarMonth = ref(0);
 
 const templates = ref([]);
@@ -94,6 +95,9 @@ const selectedNotes = computed(() => selectedConversation.value?.notes || []);
 const calendarMonthLabel = computed(() => `${CALENDAR_MONTHS[calendarMonth.value]} ${FOLLOW_UP_YEAR}`);
 const canGoPreviousMonth = computed(() => calendarMonth.value > 0);
 const canGoNextMonth = computed(() => calendarMonth.value < 11);
+const followUpTimeOptions = computed(() =>
+  Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`)
+);
 const calendarDays = computed(() => {
   const firstDay = new Date(FOLLOW_UP_YEAR, calendarMonth.value, 1).getDay();
   const daysInMonth = new Date(FOLLOW_UP_YEAR, calendarMonth.value + 1, 0).getDate();
@@ -180,6 +184,7 @@ const formatFollowUpDisplay = (dateValue, timeValue) => {
 };
 
 const openFollowUpCalendar = () => {
+  showFollowUpTimeDropdown.value = false;
   const selectedDate = followUpDate.value ? new Date(`${followUpDate.value}T00:00:00`) : null;
   if (selectedDate && selectedDate.getFullYear() === FOLLOW_UP_YEAR) {
     calendarMonth.value = selectedDate.getMonth();
@@ -191,6 +196,20 @@ const openFollowUpCalendar = () => {
 
 const closeFollowUpCalendar = () => {
   showFollowUpCalendar.value = false;
+};
+
+const toggleFollowUpTimeDropdown = () => {
+  showFollowUpCalendar.value = false;
+  showFollowUpTimeDropdown.value = !showFollowUpTimeDropdown.value;
+};
+
+const closeFollowUpTimeDropdown = () => {
+  showFollowUpTimeDropdown.value = false;
+};
+
+const closeFollowUpPickers = () => {
+  closeFollowUpCalendar();
+  closeFollowUpTimeDropdown();
 };
 
 const goToPreviousMonth = () => {
@@ -224,6 +243,13 @@ const selectCalendarDay = (day) => {
   followUpDate.value = calendarDateValue(day);
   closeFollowUpCalendar();
 };
+
+const selectFollowUpTime = (timeOption) => {
+  followUpTime.value = timeOption;
+  closeFollowUpTimeDropdown();
+};
+
+const isSelectedFollowUpTime = (timeOption) => followUpTime.value === timeOption;
 
 const loadConversations = async () => {
   const data = await api.getConversations(buildConversationQuery());
@@ -559,7 +585,25 @@ onMounted(refreshDashboard);
                   <span>{{ formatFollowUpDisplay(followUpDate, followUpTime) }}</span>
                   <span class="calendar-icon">📅</span>
                 </button>
-                <input v-model="followUpTime" type="time" />
+                <button type="button" class="time-trigger" @click="toggleFollowUpTimeDropdown">
+                  <span>{{ followUpTime || "09:00" }}</span>
+                  <span class="time-icons">
+                    <span class="clock-icon">🕒</span>
+                    <span class="time-arrow">⌄</span>
+                  </span>
+                </button>
+                <div v-if="showFollowUpTimeDropdown" class="time-popover">
+                  <button
+                    v-for="timeOption in followUpTimeOptions"
+                    :key="timeOption"
+                    type="button"
+                    class="time-option"
+                    :class="{ selected: isSelectedFollowUpTime(timeOption) }"
+                    @click="selectFollowUpTime(timeOption)"
+                  >
+                    {{ timeOption }}
+                  </button>
+                </div>
                 <div v-if="showFollowUpCalendar" class="calendar-popover">
                   <div class="calendar-header">
                     <button type="button" @click="goToPreviousMonth" :disabled="!canGoPreviousMonth">‹</button>
@@ -732,7 +776,7 @@ onMounted(refreshDashboard);
       </article>
     </section>
 
-    <div v-if="showFollowUpCalendar" class="calendar-overlay" @click="closeFollowUpCalendar"></div>
+    <div v-if="showFollowUpCalendar || showFollowUpTimeDropdown" class="calendar-overlay" @click="closeFollowUpPickers"></div>
 
     <div v-if="showWhatsAppModal" class="modal-backdrop" @click.self="closeWhatsAppModal">
       <section class="modal-card">
@@ -1117,6 +1161,36 @@ h3 {
   font-size: 0.9rem;
 }
 
+.time-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #2a5a4b;
+  background: rgba(8, 16, 23, 0.9);
+  border-radius: 9px;
+  padding: 7px 9px;
+  color: #e2fff1;
+  font-size: 0.9rem;
+}
+
+.time-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clock-icon {
+  opacity: 0.78;
+  font-size: 0.9rem;
+}
+
+.time-arrow {
+  opacity: 0.86;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .calendar-icon {
   opacity: 0.85;
 }
@@ -1181,6 +1255,40 @@ h3 {
 }
 
 .calendar-day.selected {
+  border-color: #25d366;
+  background: rgba(29, 163, 95, 0.35);
+  color: #ecfff5;
+}
+
+.time-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 160px;
+  max-height: 210px;
+  overflow: auto;
+  background: #0b1720;
+  border: 1px solid #245245;
+  border-radius: 12px;
+  padding: 8px;
+  z-index: 60;
+  box-shadow: 0 14px 30px rgba(2, 9, 13, 0.45);
+  display: grid;
+  gap: 6px;
+}
+
+.time-option {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #22483d;
+  border-radius: 8px;
+  background: rgba(12, 25, 18, 0.55);
+  color: #d6fff0;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+}
+
+.time-option.selected {
   border-color: #25d366;
   background: rgba(29, 163, 95, 0.35);
   color: #ecfff5;
