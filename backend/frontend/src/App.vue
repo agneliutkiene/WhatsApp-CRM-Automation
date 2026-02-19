@@ -69,8 +69,13 @@ const filters = reactive({
   search: ""
 });
 const needsAttentionOnly = ref(false);
+const crmFilters = reactive({
+  source: "ALL",
+  search: ""
+});
 
 const conversations = ref([]);
+const crmLeads = ref([]);
 const selectedConversationId = ref("");
 const selectedConversation = ref(null);
 const highlightedConversationId = ref("");
@@ -112,11 +117,6 @@ const automationSafety = reactive({
   followUpsDueNow: 0
 });
 
-const simulatedInbound = reactive({
-  phone: "",
-  text: ""
-});
-
 const wordpressLead = reactive({
   name: "",
   phone: "",
@@ -134,6 +134,58 @@ const setupCompletedSteps = computed(
   () =>
     [whatsappSetup.connected, whatsappSetup.webhookConfirmed, whatsappSetup.testMessageSent].filter(Boolean).length
 );
+const crmSummary = computed(() => {
+  return crmLeads.value.reduce(
+    (summary, lead) => {
+      summary.total += 1;
+      if (lead.state === "NEW") {
+        summary.new += 1;
+      } else if (lead.state === "FOLLOW_UP") {
+        summary.followUp += 1;
+      } else if (lead.state === "CLOSED") {
+        summary.closed += 1;
+      }
+      if (lead.source === "WORDPRESS_FORM") {
+        summary.wordpress += 1;
+      }
+      return summary;
+    },
+    {
+      total: 0,
+      new: 0,
+      followUp: 0,
+      closed: 0,
+      wordpress: 0
+    }
+  );
+});
+const filteredCrmLeads = computed(() => {
+  const source = crmFilters.source;
+  const term = crmFilters.search.trim().toLowerCase();
+
+  return crmLeads.value.filter((lead) => {
+    const sourceMatch = source === "ALL" ? true : lead.source === source;
+    if (!sourceMatch) {
+      return false;
+    }
+
+    if (!term) {
+      return true;
+    }
+
+    return (
+      String(lead.name || "")
+        .toLowerCase()
+        .includes(term) ||
+      String(lead.phone || "")
+        .toLowerCase()
+        .includes(term) ||
+      String(lead.lastMessageText || "")
+        .toLowerCase()
+        .includes(term)
+    );
+  });
+});
 const visibleConversations = computed(() => {
   if (!needsAttentionOnly.value) {
     return conversations.value;
@@ -447,10 +499,56 @@ const jumpToInbox = () => {
   inboxSection?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+const jumpToCrm = () => {
+  const crmSection = document.getElementById("crm");
+  crmSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const formatLeadSource = (source) => {
+  if (source === "WORDPRESS_FORM") {
+    return "WordPress";
+  }
+  if (source === "WHATSAPP_WEBHOOK" || source === "WHATSAPP") {
+    return "WhatsApp";
+  }
+  if (source === "MANUAL_TEST" || source === "SETUP_TEST") {
+    return "Manual";
+  }
+  return source || "Unknown";
+};
+
+const copyValue = async (value, successMessage) => {
+  if (!value) {
+    error.value = "Nothing to copy yet.";
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    showSuccess(successMessage);
+  } catch (err) {
+    error.value = "Clipboard copy failed. Copy it manually.";
+  }
+};
+
+const applySuggestedCredentials = () => {
+  if (!whatsappConfig.verifyToken.trim()) {
+    whatsappConfig.verifyToken = "whatsapp-crm-verify-2026";
+  }
+  if (!whatsappConfig.businessPhone.trim()) {
+    whatsappConfig.businessPhone = "+919876543210";
+  }
+  showSuccess("Suggested credential examples applied.");
+};
+
 const loadConversations = async () => {
   const data = await api.getConversations(buildConversationQuery());
   conversations.value = data;
   ensureSelectedConversation();
+};
+
+const loadCrmLeads = async () => {
+  crmLeads.value = await api.getConversations();
 };
 
 const loadSelectedConversation = async () => {
@@ -492,6 +590,7 @@ const refreshDashboard = async () => {
     automationWarnings.value = [...(nextAutomationSafety?.warnings || [])];
 
     await loadWhatsAppSetup();
+    await loadCrmLeads();
     await loadConversations();
     await loadSelectedConversation();
   } catch (err) {
@@ -570,6 +669,7 @@ const sendSetupTest = async () => {
 
     const conversationId = data?.conversation?.id || "";
     await loadWhatsAppSetup();
+    await loadCrmLeads();
     await loadConversations();
 
     if (conversationId) {
@@ -647,6 +747,7 @@ const saveConversationMeta = async () => {
       followUpAt: combineFollowUpToIso(followUpDate.value, followUpTime.value)
     });
 
+    await loadCrmLeads();
     await loadConversations();
     await loadSelectedConversation();
     analytics.value = await api.getAnalytics();
@@ -659,6 +760,7 @@ const saveConversationMeta = async () => {
 const quickSetConversationState = async (conversationId, state) => {
   try {
     await api.updateConversation(conversationId, { state });
+    await loadCrmLeads();
     await loadConversations();
     if (selectedConversationId.value === conversationId) {
       await loadSelectedConversation();
@@ -708,6 +810,7 @@ const sendMessage = async () => {
     });
 
     messageInput.value = "";
+    await loadCrmLeads();
     await loadConversations();
     await loadSelectedConversation();
     analytics.value = await api.getAnalytics();
@@ -762,26 +865,6 @@ const saveAutomation = async () => {
   }
 };
 
-const runInboundSimulation = async () => {
-  if (!simulatedInbound.phone.trim() || !simulatedInbound.text.trim()) {
-    return;
-  }
-
-  try {
-    await api.simulateInbound({
-      name: "Unknown",
-      phone: simulatedInbound.phone,
-      text: simulatedInbound.text
-    });
-
-    simulatedInbound.phone = "";
-    simulatedInbound.text = "";
-    await refreshDashboard();
-  } catch (err) {
-    setError(err);
-  }
-};
-
 const submitWordPressLead = async () => {
   if (!wordpressLead.phone.trim() || !wordpressLead.message.trim()) {
     return;
@@ -801,6 +884,7 @@ const submitWordPressLead = async () => {
     filters.state = "ALL";
     filters.search = "";
     analytics.value = await api.getAnalytics();
+    await loadCrmLeads();
     await loadConversations();
 
     if (insertedConversationId) {
@@ -818,6 +902,22 @@ const submitWordPressLead = async () => {
       await loadSelectedConversation();
       showSuccess("Lead added to CRM inbox.");
     }
+  } catch (err) {
+    setError(err);
+  }
+};
+
+const openLeadFromCrm = async (conversationId) => {
+  try {
+    selectedConversationId.value = conversationId;
+    highlightedConversationId.value = conversationId;
+    setTimeout(() => {
+      if (highlightedConversationId.value === conversationId) {
+        highlightedConversationId.value = "";
+      }
+    }, 2800);
+    jumpToInbox();
+    await loadSelectedConversation();
   } catch (err) {
     setError(err);
   }
@@ -873,6 +973,7 @@ onMounted(initializeDashboard);
       <div class="brand">&lt;/&gt; WhatsAppCRM</div>
       <nav class="top-nav">
         <a href="#top">Home</a>
+        <a href="#crm">CRM</a>
         <a href="#inbox">Inbox</a>
         <a href="#automation">Automation</a>
         <a href="#templates">Templates</a>
@@ -905,25 +1006,53 @@ onMounted(initializeDashboard);
         <h3>Quick setup checklist</h3>
         <span class="setup-progress">{{ setupCompletedSteps }}/3 complete</span>
       </div>
-      <div class="setup-grid">
-        <p :data-done="whatsappSetup.connected"><strong>1.</strong> Connect credentials</p>
-        <p :data-done="whatsappSetup.webhookConfirmed"><strong>2.</strong> Verify webhook in Meta</p>
-        <p :data-done="whatsappSetup.testMessageSent"><strong>3.</strong> Send one test message</p>
-      </div>
-      <div class="setup-inline">
-        <label>
-          Webhook URL
-          <input :value="whatsappSetup.webhookUrl" readonly />
-        </label>
-        <label>
-          Verify token
-          <input :value="whatsappSetup.verifyToken || 'Set in Connect your WhatsApp'" readonly />
-        </label>
-      </div>
-      <div class="setup-actions">
-        <button @click="openWhatsAppModal">Connect credentials</button>
-        <button @click="confirmWebhookSetup" :disabled="!whatsappSetup.connected">I verified webhook</button>
-        <button class="primary" @click="openSetupWizard">Open setup assistant</button>
+      <div class="setup-step-grid">
+        <article class="setup-step" :data-done="whatsappSetup.connected">
+          <h4>1. Connect credentials</h4>
+          <p class="setup-copy">Suggested format: phone `+919876543210`, ID from Meta API Setup, token from Meta.</p>
+          <div class="setup-actions">
+            <button @click="openWhatsAppModal">Open credentials form</button>
+            <button @click="applySuggestedCredentials">Use suggested examples</button>
+          </div>
+        </article>
+        <article class="setup-step" :data-done="whatsappSetup.webhookConfirmed">
+          <h4>2. Verify webhook</h4>
+          <div class="setup-inline">
+            <label>
+              Webhook URL
+              <input :value="whatsappSetup.webhookUrl" readonly />
+            </label>
+            <label>
+              Verify token
+              <input :value="whatsappSetup.verifyToken || 'Set in Connect your WhatsApp'" readonly />
+            </label>
+          </div>
+          <div class="setup-actions">
+            <button @click="copyValue(whatsappSetup.webhookUrl, 'Webhook URL copied.')">Copy URL</button>
+            <button @click="copyValue(whatsappSetup.verifyToken, 'Verify token copied.')">Copy token</button>
+            <button @click="confirmWebhookSetup" :disabled="!whatsappSetup.connected">Mark webhook verified</button>
+          </div>
+        </article>
+        <article class="setup-step" :data-done="whatsappSetup.testMessageSent">
+          <h4>3. Send test message</h4>
+          <p class="setup-copy">Enter your own WhatsApp number and send a safe test text.</p>
+          <div class="setup-inline">
+            <label>
+              Test phone
+              <input v-model="setupTest.phone" placeholder="+919876543210" />
+            </label>
+            <label>
+              Test text
+              <input v-model="setupTest.text" placeholder="Hi, this is my CRM setup test." />
+            </label>
+          </div>
+          <div class="setup-actions">
+            <button class="primary" @click="sendSetupTest" :disabled="setupSaving">
+              {{ setupSaving ? "Sending..." : "Send setup test" }}
+            </button>
+            <button @click="openSetupWizard">Open full assistant</button>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -944,6 +1073,60 @@ onMounted(initializeDashboard);
         <h2>{{ analytics.totalConversations }}</h2>
         <p>Total conversations</p>
       </article>
+    </section>
+
+    <section class="card crm-overview" id="crm">
+      <div class="setup-heading">
+        <h3>CRM Lead Board</h3>
+        <span class="setup-progress">{{ crmSummary.total }} total leads</span>
+      </div>
+      <div class="crm-stats-grid">
+        <article>
+          <h4>{{ crmSummary.new }}</h4>
+          <p>New</p>
+        </article>
+        <article>
+          <h4>{{ crmSummary.followUp }}</h4>
+          <p>Follow-up</p>
+        </article>
+        <article>
+          <h4>{{ crmSummary.closed }}</h4>
+          <p>Closed</p>
+        </article>
+        <article>
+          <h4>{{ crmSummary.wordpress }}</h4>
+          <p>WordPress leads</p>
+        </article>
+      </div>
+      <div class="crm-toolbar">
+        <select v-model="crmFilters.source">
+          <option value="ALL">All sources</option>
+          <option value="WORDPRESS_FORM">WordPress only</option>
+          <option value="WHATSAPP_WEBHOOK">WhatsApp webhook</option>
+          <option value="WHATSAPP">WhatsApp native</option>
+          <option value="MANUAL_TEST">Manual test</option>
+          <option value="SETUP_TEST">Setup test</option>
+        </select>
+        <input v-model="crmFilters.search" placeholder="Search leads by name, phone, or text" />
+      </div>
+      <div class="crm-list">
+        <article v-for="lead in filteredCrmLeads" :key="`crm-${lead.id}`" class="crm-item">
+          <div class="crm-item-main">
+            <div class="crm-line">
+              <strong>{{ lead.name }}</strong>
+              <span class="pill" :data-state="lead.state">{{ lead.state }}</span>
+            </div>
+            <p>{{ lead.phone }}</p>
+            <p class="dim">{{ lead.lastMessageText }}</p>
+          </div>
+          <div class="crm-item-meta">
+            <span class="source-chip">{{ formatLeadSource(lead.source) }}</span>
+            <small>{{ formatDate(lead.lastMessageAt) }}</small>
+            <button @click="openLeadFromCrm(lead.id)">Open in inbox</button>
+          </div>
+        </article>
+        <p v-if="filteredCrmLeads.length === 0" class="dim">No leads match this CRM filter.</p>
+      </div>
     </section>
 
     <section class="workspace" id="inbox">
@@ -1260,14 +1443,7 @@ onMounted(initializeDashboard);
       </article>
     </section>
 
-    <section class="grid-2" id="templates">
-      <article class="card form-stack">
-        <h3>Inbound Simulation (for demos)</h3>
-        <input v-model="simulatedInbound.phone" placeholder="Phone (+91...)" />
-        <textarea v-model="simulatedInbound.text" rows="3" placeholder="Inbound WhatsApp message"></textarea>
-        <button class="primary" @click="runInboundSimulation">Ingest inbound</button>
-      </article>
-
+    <section class="grid-1" id="templates">
       <article class="card form-stack">
         <h3>WordPress Lead -> WhatsApp CRM</h3>
         <div class="inline-form">
@@ -1278,7 +1454,8 @@ onMounted(initializeDashboard);
         <input v-model="wordpressLead.sourceUrl" placeholder="WordPress page URL" />
         <button class="primary" @click="submitWordPressLead">Push lead</button>
         <p class="card-hint">
-          Leads appear in the CRM Inbox (left panel) as <strong>NEW</strong> conversations.
+          Leads appear in <strong>CRM Lead Board</strong> and Inbox as <strong>NEW</strong> conversations.
+          <button type="button" class="link-button" @click="jumpToCrm">Go to CRM</button>
           <button type="button" class="link-button" @click="jumpToInbox">Go to inbox</button>
         </p>
       </article>
@@ -1299,23 +1476,28 @@ onMounted(initializeDashboard);
         <div class="modal-grid">
           <label>
             Business phone number
-            <input v-model="whatsappConfig.businessPhone" placeholder="+91..." />
+            <input v-model="whatsappConfig.businessPhone" placeholder="+919876543210" />
+            <small class="field-hint">Use full international format, no spaces.</small>
           </label>
           <label>
             Phone number ID
-            <input v-model="whatsappConfig.phoneNumberId" placeholder="Meta phone number ID" />
+            <input v-model="whatsappConfig.phoneNumberId" placeholder="123456789012345" />
+            <small class="field-hint">From Meta Developer -> WhatsApp -> API Setup.</small>
           </label>
           <label>
             Access token
             <input v-model="whatsappConfig.accessToken" type="password" placeholder="Meta access token" />
+            <small class="field-hint">Paste temporary/permanent token from Meta.</small>
           </label>
           <label>
             Webhook verify token
-            <input v-model="whatsappConfig.verifyToken" placeholder="Verify token used in Meta webhook setup" />
+            <input v-model="whatsappConfig.verifyToken" placeholder="whatsapp-crm-verify-2026" />
+            <small class="field-hint">Use same token in Meta webhook configuration.</small>
           </label>
         </div>
         <p class="dim modal-note">Access token stays hidden. Leave it blank to keep the current token unchanged.</p>
         <div class="modal-actions">
+          <button @click="applySuggestedCredentials">Use examples</button>
           <button @click="closeWhatsAppModal">Cancel</button>
           <button class="primary" @click="saveWhatsAppConfig" :disabled="whatsappSaving">
             {{ whatsappSaving ? "Saving..." : "Save credentials" }}
@@ -1346,6 +1528,8 @@ onMounted(initializeDashboard);
         <div class="setup-actions modal-actions-left">
           <button @click="openWhatsAppModal">Connect credentials</button>
           <button @click="confirmWebhookSetup" :disabled="!whatsappSetup.connected">I verified webhook</button>
+          <button @click="copyValue(whatsappSetup.webhookUrl, 'Webhook URL copied.')">Copy URL</button>
+          <button @click="copyValue(whatsappSetup.verifyToken, 'Verify token copied.')">Copy token</button>
         </div>
         <div class="modal-grid">
           <label>
@@ -1587,7 +1771,7 @@ h1 {
 
 .setup-card {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 16px;
   background: linear-gradient(180deg, rgba(14, 27, 24, 0.93), rgba(11, 20, 19, 0.9));
 }
@@ -1612,6 +1796,39 @@ h1 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.setup-step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.setup-step {
+  border: 1px solid #33574b;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(11, 21, 20, 0.88);
+  display: grid;
+  gap: 10px;
+}
+
+.setup-step h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #d3efe2;
+}
+
+.setup-step[data-done="true"] {
+  border-color: #3c936d;
+  background: rgba(20, 62, 48, 0.62);
+}
+
+.setup-copy {
+  margin: 0;
+  color: #95b6a9;
+  font-size: 0.81rem;
+  line-height: 1.45;
 }
 
 .setup-grid p {
@@ -1641,6 +1858,11 @@ h1 {
   flex-wrap: wrap;
 }
 
+.setup-actions button {
+  font-size: 0.8rem;
+  padding: 6px 9px;
+}
+
 .stats-grid {
   position: relative;
   display: grid;
@@ -1668,6 +1890,86 @@ h1 {
   color: #94b4a7;
 }
 
+.crm-overview {
+  margin-bottom: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.crm-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.crm-stats-grid article {
+  border: 1px solid #33584b;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(12, 24, 22, 0.86);
+}
+
+.crm-stats-grid h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #aee8cb;
+}
+
+.crm-stats-grid p {
+  margin: 4px 0 0;
+  color: #90b0a3;
+  font-size: 0.82rem;
+}
+
+.crm-toolbar {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 10px;
+}
+
+.crm-list {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.crm-item {
+  border: 1px solid #31564a;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(10, 20, 19, 0.9);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.crm-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-item-main p {
+  margin: 4px 0 0;
+}
+
+.crm-item-meta {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.source-chip {
+  border: 1px solid #396556;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  color: #b7dfcd;
+  background: rgba(20, 57, 46, 0.56);
+}
+
 .workspace {
   position: relative;
   display: grid;
@@ -1676,6 +1978,7 @@ h1 {
   margin-bottom: 14px;
 }
 
+#crm,
 #inbox,
 #automation,
 #templates {
@@ -2305,6 +2608,14 @@ button.primary:hover {
   margin-bottom: 14px;
 }
 
+.grid-1 {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
 .triple {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2350,6 +2661,13 @@ button.primary:hover {
   font-size: 0.84rem;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: #8caea1;
+  font-size: 0.75rem;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -2385,6 +2703,7 @@ button.primary:hover {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .modal-actions-left {
@@ -2433,6 +2752,22 @@ button.primary:hover {
     grid-template-columns: 1fr;
   }
 
+  .grid-1 {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crm-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-item {
+    grid-template-columns: 1fr;
+  }
+
   .meta-grid,
   .triple,
   .inline-form,
@@ -2444,10 +2779,18 @@ button.primary:hover {
   .setup-grid {
     grid-template-columns: 1fr;
   }
+
+  .setup-step-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 620px) {
   .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-stats-grid {
     grid-template-columns: 1fr;
   }
 }
