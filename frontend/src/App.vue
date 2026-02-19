@@ -467,13 +467,36 @@ const showSuccess = (message) => {
 };
 
 const jumpToInbox = () => {
-  const inboxSection = document.getElementById("inbox");
-  inboxSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollToSection("inbox");
 };
 
 const jumpToCrm = () => {
-  const crmSection = document.getElementById("crm");
-  crmSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollToSection("crm");
+};
+
+const clearHash = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const cleanUrl = `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(null, "", cleanUrl);
+};
+
+const scrollToSection = (sectionId) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const target = document.getElementById(sectionId);
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  clearHash();
+};
+
+const scrollToTop = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  clearHash();
 };
 
 const initializeView = () => {
@@ -886,12 +909,12 @@ onMounted(initializeDashboard);
       <nav class="top-nav">
         <a v-if="isCrmView" :href="mainAppUrl">Main App</a>
         <button v-else class="nav-link-button" @click="openCrmWindow">CRM</button>
-        <a v-if="!isCrmView" href="#inbox">Inbox</a>
-        <a v-if="!isCrmView" href="#automations">Automation</a>
-        <a v-if="!isCrmView" href="#templates">Templates</a>
-        <a v-if="isCrmView" href="#crm">CRM Board</a>
-        <a v-if="isCrmView" href="#lead-capture">Lead Capture</a>
-        <a href="#top">Top</a>
+        <button v-if="!isCrmView" class="nav-link-button" @click="scrollToSection('inbox')">Inbox</button>
+        <button v-if="!isCrmView" class="nav-link-button" @click="scrollToSection('automations')">Automation</button>
+        <button v-if="!isCrmView" class="nav-link-button" @click="scrollToSection('templates')">Templates</button>
+        <button v-if="isCrmView" class="nav-link-button" @click="scrollToSection('crm')">CRM Board</button>
+        <button v-if="isCrmView" class="nav-link-button" @click="scrollToSection('lead-capture')">Lead Capture</button>
+        <button class="nav-link-button" @click="scrollToTop">Top</button>
       </nav>
     </header>
 
@@ -1332,7 +1355,7 @@ onMounted(initializeDashboard);
       @click="closeFollowUpPickers"
     ></div>
 
-    <a href="#top" class="scroll-top">Top</a>
+    <button type="button" class="scroll-top" @click="scrollToTop">Top</button>
 
     <div v-if="showWhatsAppModal" class="modal-backdrop" @click.self="closeWhatsAppModal">
       <section class="modal-card">
@@ -1417,7 +1440,7 @@ onMounted(initializeDashboard);
   font-size: 0.94rem;
   color: var(--text-main);
   min-height: 100vh;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .bg-blob {
