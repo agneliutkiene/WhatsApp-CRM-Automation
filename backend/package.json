@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build:frontend": "npm --prefix ../frontend ci --include=dev && npm --prefix ../frontend run build",
+    "build:frontend": "npm --prefix ./frontend ci --include=dev && npm --prefix ./frontend run build",
     "postinstall": "npm run build:frontend"
   },
   "dependencies": {

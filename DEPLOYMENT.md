@@ -41,7 +41,7 @@ What happens during install:
 
 1. Hostinger installs backend dependencies.
 2. Backend `postinstall` runs.
-3. `postinstall` builds frontend from `../frontend`.
+3. `postinstall` builds frontend from `./frontend`.
 4. Backend serves built frontend from `frontend/dist`.
 
 ## 4) Verify
