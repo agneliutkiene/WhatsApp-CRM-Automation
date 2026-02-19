@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { getDb, saveDb } from "../utils/store.js";
+import { nowIso } from "../utils/time.js";
 
 const getStoredWhatsAppConfig = () => {
   const db = getDb();
@@ -19,12 +20,15 @@ export const getEffectiveWhatsAppConfig = () => {
 
 export const getPublicWhatsAppConfig = () => {
   const effective = getEffectiveWhatsAppConfig();
+  const stored = getStoredWhatsAppConfig();
   return {
     businessPhone: effective.businessPhone,
     phoneNumberId: effective.phoneNumberId,
     verifyToken: effective.verifyToken,
     hasAccessToken: Boolean(effective.accessToken),
-    isConnected: Boolean(effective.accessToken && effective.phoneNumberId)
+    isConnected: Boolean(effective.accessToken && effective.phoneNumberId),
+    webhookConfirmedAt: stored.webhookConfirmedAt || null,
+    lastTestSentAt: stored.lastTestSentAt || null
   };
 };
 
@@ -36,11 +40,54 @@ export const updateWhatsAppConfig = (nextConfig = {}) => {
     businessPhone: String(nextConfig.businessPhone ?? current.businessPhone ?? "").trim(),
     phoneNumberId: String(nextConfig.phoneNumberId ?? current.phoneNumberId ?? "").trim(),
     accessToken: String(nextConfig.accessToken ?? current.accessToken ?? "").trim(),
-    verifyToken: String(nextConfig.verifyToken ?? current.verifyToken ?? "").trim()
+    verifyToken: String(nextConfig.verifyToken ?? current.verifyToken ?? "").trim(),
+    webhookConfirmedAt: current.webhookConfirmedAt || null,
+    lastTestSentAt: current.lastTestSentAt || null
   };
 
   saveDb(db);
   return getPublicWhatsAppConfig();
+};
+
+export const markWebhookConfirmed = () => {
+  const db = getDb();
+  db.whatsappConfig = {
+    ...(db.whatsappConfig || {}),
+    webhookConfirmedAt: nowIso()
+  };
+  saveDb(db);
+  return getPublicWhatsAppConfig();
+};
+
+export const markWhatsAppTestSent = () => {
+  const db = getDb();
+  db.whatsappConfig = {
+    ...(db.whatsappConfig || {}),
+    lastTestSentAt: nowIso()
+  };
+  saveDb(db);
+  return getPublicWhatsAppConfig();
+};
+
+export const getWhatsAppConnectionStatus = ({ requestBaseUrl = "" } = {}) => {
+  const config = getPublicWhatsAppConfig();
+  const webhookUrl = `${requestBaseUrl || env.appBaseUrl || ""}/api/integrations/whatsapp/webhook`.replace(/([^:]\/)\/+/g, "$1");
+  const connected = Boolean(config.isConnected);
+  const hasVerifyToken = Boolean(config.verifyToken);
+  const webhookConfirmed = Boolean(config.webhookConfirmedAt);
+  const testMessageSent = Boolean(config.lastTestSentAt);
+
+  return {
+    connected,
+    hasVerifyToken,
+    webhookConfirmed,
+    testMessageSent,
+    completed: connected && webhookConfirmed && testMessageSent,
+    webhookUrl,
+    verifyToken: config.verifyToken,
+    lastTestSentAt: config.lastTestSentAt,
+    webhookConfirmedAt: config.webhookConfirmedAt
+  };
 };
 
 export const hasWhatsAppCredentials = () => {

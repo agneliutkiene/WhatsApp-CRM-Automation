@@ -26,12 +26,17 @@ Add these variables:
 - `APP_TIMEZONE=Asia/Kolkata`
 - `BUSINESS_HOURS_START=09:00`
 - `BUSINESS_HOURS_END=19:00`
+- `APP_BASE_URL=https://<your-temp-domain>`
 
 Optional (for real WhatsApp sending):
 
 - `WHATSAPP_ACCESS_TOKEN=...`
 - `WHATSAPP_PHONE_NUMBER_ID=...`
 - `WHATSAPP_VERIFY_TOKEN=...`
+
+Optional (recommended on public domains):
+
+- `APP_PASSWORD=<strong-password>`
 
 ## 3) Deploy
 
@@ -100,6 +105,12 @@ In Meta developer console:
 
 - Callback URL: `https://<your-temp-domain>/api/integrations/whatsapp/webhook`
 - Verify token: same as `WHATSAPP_VERIFY_TOKEN`
+
+In the app UI, open **Setup checklist** and complete:
+
+1. Connect credentials
+2. Confirm webhook step
+3. Send setup test message
 
 ## 9) Production note
 

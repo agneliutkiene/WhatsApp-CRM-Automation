@@ -1,9 +1,34 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const PASSWORD_STORAGE_KEY = "wa_crm_api_password";
+
+const readStoredPassword = () => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return String(window.localStorage.getItem(PASSWORD_STORAGE_KEY) || "");
+};
+
+let apiPassword = readStoredPassword();
+
+const applyPassword = (nextPassword = "") => {
+  apiPassword = String(nextPassword || "").trim();
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (apiPassword) {
+    window.localStorage.setItem(PASSWORD_STORAGE_KEY, apiPassword);
+  } else {
+    window.localStorage.removeItem(PASSWORD_STORAGE_KEY);
+  }
+};
 
 const request = async (path, options = {}) => {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(apiPassword ? { "x-app-password": apiPassword } : {}),
       ...(options.headers || {})
     },
     ...options
@@ -12,13 +37,27 @@ const request = async (path, options = {}) => {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(payload.error || "Request failed");
+    const error = new Error(payload.error || "Request failed");
+    if (response.status === 401) {
+      error.code = "AUTH_REQUIRED";
+    }
+    if (Array.isArray(payload.details)) {
+      error.details = payload.details;
+    }
+    throw error;
   }
 
   return payload.data;
 };
 
+export const apiAuth = {
+  getPassword: () => apiPassword,
+  setPassword: (value) => applyPassword(value),
+  clearPassword: () => applyPassword("")
+};
+
 export const api = {
+  getHealth: () => request("/health"),
   getAnalytics: () => request("/analytics/today"),
   getConversations: (query = "") => request(`/conversations${query}`),
   getConversation: (id) => request(`/conversations/${id}`),
@@ -49,15 +88,26 @@ export const api = {
       body: JSON.stringify(body)
     }),
   getAutomation: () => request("/automation"),
+  getAutomationSafety: () => request("/automation/safety"),
   updateAutomation: (body) =>
     request("/automation", {
       method: "PATCH",
       body: JSON.stringify(body)
     }),
   getWhatsAppConfig: () => request("/integrations/whatsapp/config"),
+  getWhatsAppStatus: () => request("/integrations/whatsapp/status"),
   updateWhatsAppConfig: (body) =>
     request("/integrations/whatsapp/config", {
       method: "PATCH",
+      body: JSON.stringify(body)
+    }),
+  confirmWhatsAppWebhook: () =>
+    request("/integrations/whatsapp/confirm-webhook", {
+      method: "POST"
+    }),
+  sendWhatsAppTestMessage: (body) =>
+    request("/integrations/whatsapp/test-message", {
+      method: "POST",
       body: JSON.stringify(body)
     }),
   simulateInbound: (body) =>

@@ -26,7 +26,9 @@ const ensureDbShape = (db) => {
       businessPhone: "",
       phoneNumberId: "",
       accessToken: "",
-      verifyToken: ""
+      verifyToken: "",
+      webhookConfirmedAt: null,
+      lastTestSentAt: null
     };
     changed = true;
   }
@@ -45,6 +47,14 @@ const ensureDbShape = (db) => {
   }
   if (typeof db.whatsappConfig.verifyToken !== "string") {
     db.whatsappConfig.verifyToken = "";
+    changed = true;
+  }
+  if (typeof db.whatsappConfig.webhookConfirmedAt !== "string" && db.whatsappConfig.webhookConfirmedAt !== null) {
+    db.whatsappConfig.webhookConfirmedAt = null;
+    changed = true;
+  }
+  if (typeof db.whatsappConfig.lastTestSentAt !== "string" && db.whatsappConfig.lastTestSentAt !== null) {
+    db.whatsappConfig.lastTestSentAt = null;
     changed = true;
   }
 

@@ -1,8 +1,11 @@
 :root {
   font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
   font-size: 15px;
-  color: #e7f7ef;
-  background: radial-gradient(circle at 15% 10%, #162d26 0%, #0a121a 48%, #070d13 100%);
+  color: #e7f2ec;
+  background:
+    radial-gradient(circle at 16% 8%, #173129 0%, transparent 34%),
+    radial-gradient(circle at 92% -10%, #133024 0%, transparent 28%),
+    linear-gradient(180deg, #081013 0%, #060c0d 100%);
   line-height: 1.45;
 }
 
@@ -13,7 +16,11 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: #070d13;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(40, 143, 102, 0.13) 0%, transparent 32%),
+    radial-gradient(circle at 100% 0%, rgba(36, 133, 96, 0.12) 0%, transparent 26%),
+    #060c0d;
+  letter-spacing: 0.01em;
 }
 
 button,

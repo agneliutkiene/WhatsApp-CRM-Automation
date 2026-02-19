@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { env } from "./config/env.js";
+import { requireApiAuth } from "./middleware/apiAuth.js";
 import { conversationsRouter } from "./routes/conversationsRoutes.js";
 import { templatesRouter } from "./routes/templatesRoutes.js";
 import { automationRouter } from "./routes/automationRoutes.js";
@@ -27,9 +28,12 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     dataFile: getDataFilePath(),
-    environment: env.nodeEnv
+    environment: env.nodeEnv,
+    authRequired: Boolean(env.appPassword)
   });
 });
+
+app.use("/api", requireApiAuth);
 
 app.use("/api/conversations", conversationsRouter);
 app.use("/api/templates", templatesRouter);

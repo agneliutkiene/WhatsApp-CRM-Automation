@@ -1,6 +1,9 @@
 import express from "express";
-import { ingestWordPressLead, receiveInboundMessage } from "../services/crmService.js";
+import { ingestWordPressLead, receiveInboundMessage, sendSetupTestMessage } from "../services/crmService.js";
 import {
+  getWhatsAppConnectionStatus,
+  markWebhookConfirmed,
+  markWhatsAppTestSent,
   getPublicWhatsAppConfig,
   getWhatsAppVerifyToken,
   updateWhatsAppConfig
@@ -33,6 +36,16 @@ integrationsRouter.get("/whatsapp/config", (req, res) => {
   return res.json({ data });
 });
 
+integrationsRouter.get("/whatsapp/status", (req, res) => {
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  const host = req.get("host");
+  const requestBaseUrl = host ? `${proto}://${host}` : "";
+  const data = getWhatsAppConnectionStatus({ requestBaseUrl });
+  return res.json({ data });
+});
+
 integrationsRouter.patch("/whatsapp/config", (req, res) => {
   const data = updateWhatsAppConfig({
     businessPhone: req.body.businessPhone,
@@ -41,6 +54,30 @@ integrationsRouter.patch("/whatsapp/config", (req, res) => {
     verifyToken: req.body.verifyToken
   });
   return res.json({ data });
+});
+
+integrationsRouter.post("/whatsapp/confirm-webhook", (req, res) => {
+  const data = markWebhookConfirmed();
+  return res.json({ data });
+});
+
+integrationsRouter.post("/whatsapp/test-message", async (req, res) => {
+  const phone = String(req.body.phone || "").trim();
+  const text = String(req.body.text || "This is a WhatsApp CRM setup test message.").trim();
+
+  if (!phone) {
+    return res.status(400).json({ error: "phone is required" });
+  }
+
+  const data = await sendSetupTestMessage({
+    phone,
+    text
+  });
+
+  if (data?.message?.status !== "FAILED") {
+    markWhatsAppTestSent();
+  }
+  return res.status(201).json({ data });
 });
 
 integrationsRouter.get("/whatsapp/webhook", (req, res) => {

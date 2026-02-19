@@ -4,6 +4,8 @@ import { nowIso, isWithinBusinessHours } from "../utils/time.js";
 import { sendWhatsAppTextMessage } from "./whatsappService.js";
 
 const normalizePhone = (phone) => String(phone || "").replace(/\s+/g, "").trim();
+const AUTOMATION_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const CONVERSATION_STATES = new Set(["NEW", "FOLLOW_UP", "CLOSED"]);
 
 const sortConversations = (conversations) =>
   [...conversations].sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
@@ -133,6 +135,78 @@ const sendAutomationMessages = async ({ db, conversation, actions }) => {
   return sentMessages;
 };
 
+const isValidTimezone = (timezone) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+const normalizeAutomationConfig = (current = {}, next = {}) => ({
+  ...current,
+  ...next,
+  autoReplyOnFirstInquiry: Boolean(next.autoReplyOnFirstInquiry ?? current.autoReplyOnFirstInquiry),
+  businessHoursReplyEnabled: Boolean(next.businessHoursReplyEnabled ?? current.businessHoursReplyEnabled),
+  followUpReminderEnabled: Boolean(next.followUpReminderEnabled ?? current.followUpReminderEnabled),
+  firstInquiryTemplateId: String(next.firstInquiryTemplateId ?? current.firstInquiryTemplateId ?? "").trim(),
+  afterHoursTemplateId: String(next.afterHoursTemplateId ?? current.afterHoursTemplateId ?? "").trim(),
+  followUpReminderTemplateId: String(next.followUpReminderTemplateId ?? current.followUpReminderTemplateId ?? "").trim(),
+  timezone: String(next.timezone ?? current.timezone ?? "").trim(),
+  businessHoursStart: String(next.businessHoursStart ?? current.businessHoursStart ?? "").trim(),
+  businessHoursEnd: String(next.businessHoursEnd ?? current.businessHoursEnd ?? "").trim()
+});
+
+const getAutomationValidation = ({ config, templateIds }) => {
+  const errors = [];
+  const warnings = [];
+
+  if (!config.timezone || !isValidTimezone(config.timezone)) {
+    errors.push("Timezone is invalid. Use a valid IANA timezone (example: Asia/Kolkata).");
+  }
+
+  if (!AUTOMATION_TIME_REGEX.test(config.businessHoursStart)) {
+    errors.push("Business start time must be in HH:MM format.");
+  }
+
+  if (!AUTOMATION_TIME_REGEX.test(config.businessHoursEnd)) {
+    errors.push("Business end time must be in HH:MM format.");
+  }
+
+  if (config.businessHoursStart === config.businessHoursEnd) {
+    errors.push("Business start and end time cannot be the same.");
+  }
+
+  if (config.autoReplyOnFirstInquiry && !templateIds.has(config.firstInquiryTemplateId)) {
+    errors.push("Auto-reply on first inquiry is enabled, but the template is missing.");
+  }
+
+  if (config.businessHoursReplyEnabled && !templateIds.has(config.afterHoursTemplateId)) {
+    errors.push("After-hours auto-reply is enabled, but the template is missing.");
+  }
+
+  if (config.followUpReminderEnabled && !templateIds.has(config.followUpReminderTemplateId)) {
+    errors.push("Follow-up reminders are enabled, but the template is missing.");
+  }
+
+  if (!config.autoReplyOnFirstInquiry && !config.businessHoursReplyEnabled && !config.followUpReminderEnabled) {
+    warnings.push("All automation toggles are OFF. The system will run fully manual.");
+  }
+
+  const enabledCount = [
+    config.autoReplyOnFirstInquiry,
+    config.businessHoursReplyEnabled,
+    config.followUpReminderEnabled
+  ].filter(Boolean).length;
+
+  if (enabledCount >= 3) {
+    warnings.push("All automation rules are ON. Keep templates concise to avoid message fatigue.");
+  }
+
+  return { errors, warnings };
+};
+
 export const getConversations = ({ state, search } = {}) => {
   const db = getDb();
   let conversations = sortConversations(db.conversations);
@@ -240,10 +314,20 @@ export const updateConversation = ({ conversationId, state, followUpAt }) => {
   }
 
   if (state) {
+    if (!CONVERSATION_STATES.has(state)) {
+      const error = new Error("Invalid conversation state.");
+      error.statusCode = 400;
+      throw error;
+    }
     conversation.state = state;
   }
 
   if (followUpAt !== undefined) {
+    if (followUpAt !== null && followUpAt !== "" && Number.isNaN(new Date(followUpAt).getTime())) {
+      const error = new Error("followUpAt must be a valid ISO datetime.");
+      error.statusCode = 400;
+      throw error;
+    }
     conversation.followUpAt = followUpAt;
     conversation.followUpReminderSentAt = null;
   }
@@ -309,14 +393,53 @@ export const getAutomationConfig = () => {
   return db.automation;
 };
 
+export const getAutomationSafetySnapshot = () => {
+  const db = getDb();
+  const templateIds = new Set(db.templates.map((template) => template.id));
+  const validation = getAutomationValidation({
+    config: db.automation,
+    templateIds
+  });
+
+  return {
+    warnings: validation.warnings,
+    errors: validation.errors,
+    enabledFeatures: [
+      db.automation.autoReplyOnFirstInquiry,
+      db.automation.businessHoursReplyEnabled,
+      db.automation.followUpReminderEnabled
+    ].filter(Boolean).length,
+    followUpsDueNow: db.conversations.filter(
+      (conversation) =>
+        conversation.state === "FOLLOW_UP" &&
+        conversation.followUpAt &&
+        new Date(conversation.followUpAt).getTime() <= Date.now()
+    ).length
+  };
+};
+
 export const updateAutomationConfig = (nextConfig) => {
   const db = getDb();
-  db.automation = {
-    ...db.automation,
-    ...nextConfig
-  };
+  const templateIds = new Set(db.templates.map((template) => template.id));
+  const mergedConfig = normalizeAutomationConfig(db.automation, nextConfig);
+  const validation = getAutomationValidation({
+    config: mergedConfig,
+    templateIds
+  });
+
+  if (validation.errors.length > 0) {
+    const error = new Error(validation.errors[0]);
+    error.statusCode = 400;
+    error.details = validation.errors;
+    throw error;
+  }
+
+  db.automation = mergedConfig;
   saveDb(db);
-  return db.automation;
+  return {
+    config: db.automation,
+    warnings: validation.warnings
+  };
 };
 
 export const getPendingFollowUps = () => {
@@ -420,4 +543,39 @@ export const ingestWordPressLead = async ({ name, phone, message, sourceUrl }) =
     text: `Website lead from ${sourceUrl || "unknown source"}: ${message}`,
     source: "WORDPRESS_FORM"
   });
+};
+
+export const sendSetupTestMessage = async ({ phone, text }) => {
+  const db = getDb();
+  const conversation = upsertConversationByPhone(db, {
+    phone,
+    name: "WhatsApp Setup Test",
+    source: "SETUP_TEST"
+  });
+
+  const message = appendMessage(db, {
+    conversationId: conversation.id,
+    direction: "OUTBOUND",
+    text,
+    source: "SETUP_TEST",
+    status: "PENDING"
+  });
+
+  try {
+    const provider = await sendWhatsAppTextMessage({
+      to: conversation.phone,
+      text
+    });
+    message.status = provider.status;
+    message.externalId = provider.externalId;
+  } catch (error) {
+    message.status = "FAILED";
+    message.error = error.message;
+  }
+
+  saveDb(db);
+  return {
+    conversation,
+    message
+  };
 };

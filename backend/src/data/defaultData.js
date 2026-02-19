@@ -93,7 +93,9 @@ export const defaultData = {
     businessPhone: "",
     phoneNumberId: "",
     accessToken: "",
-    verifyToken: ""
+    verifyToken: "",
+    webhookConfirmedAt: null,
+    lastTestSentAt: null
   },
   automation: {
     autoReplyOnFirstInquiry: true,

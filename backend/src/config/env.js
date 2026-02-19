@@ -10,6 +10,8 @@ const toNumber = (value, fallback) => {
 export const env = {
   port: toNumber(process.env.PORT, 3001),
   nodeEnv: process.env.NODE_ENV || "development",
+  appPassword: process.env.APP_PASSWORD || "",
+  appBaseUrl: process.env.APP_BASE_URL || "",
   whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
   whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN || "verify-token",

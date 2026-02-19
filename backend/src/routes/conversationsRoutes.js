@@ -35,18 +35,24 @@ conversationsRouter.get("/:id", (req, res) => {
 });
 
 conversationsRouter.patch("/:id", (req, res) => {
-  const { state, followUpAt } = req.body;
-  const data = updateConversation({
-    conversationId: req.params.id,
-    state,
-    followUpAt
-  });
+  try {
+    const { state, followUpAt } = req.body;
+    const data = updateConversation({
+      conversationId: req.params.id,
+      state,
+      followUpAt
+    });
 
-  if (!data) {
-    return res.status(404).json({ error: "Conversation not found" });
+    if (!data) {
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    return res.json({ data });
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({
+      error: error.message || "Unable to update conversation"
+    });
   }
-
-  return res.json({ data });
 });
 
 conversationsRouter.post("/:id/notes", (req, res) => {

@@ -25,6 +25,12 @@ This app is designed as a lightweight operational CRM.
 - After-hours reply template
 - Follow-up reminder template
 - Automation settings editable in dashboard
+- Validation and safety checks before saving automation rules
+
+### Guided onboarding and access protection
+- Setup checklist: connect credentials, verify webhook, send test message
+- Setup assistant modal with copy-ready webhook URL/token
+- Optional API password lock for public deployments (`APP_PASSWORD`)
 
 ### Lightweight analytics
 - New inquiries today
@@ -103,6 +109,7 @@ Frontend default URL: `http://localhost:5173`
 
 ### Automation
 - `GET /api/automation`
+- `GET /api/automation/safety`
 - `PATCH /api/automation`
 
 ### Analytics
@@ -110,6 +117,9 @@ Frontend default URL: `http://localhost:5173`
 
 ### Integrations
 - `POST /api/integrations/wordpress/lead`
+- `GET /api/integrations/whatsapp/status`
+- `POST /api/integrations/whatsapp/confirm-webhook`
+- `POST /api/integrations/whatsapp/test-message`
 - `GET /api/integrations/whatsapp/webhook` (verification)
 - `POST /api/integrations/whatsapp/webhook`
 
