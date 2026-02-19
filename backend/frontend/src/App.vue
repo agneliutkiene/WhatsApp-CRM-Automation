@@ -80,7 +80,6 @@ const automation = reactive({
 });
 
 const simulatedInbound = reactive({
-  name: "",
   phone: "",
   text: ""
 });
@@ -511,12 +510,11 @@ const runInboundSimulation = async () => {
 
   try {
     await api.simulateInbound({
-      name: simulatedInbound.name || "Unknown",
+      name: "Unknown",
       phone: simulatedInbound.phone,
       text: simulatedInbound.text
     });
 
-    simulatedInbound.name = "";
     simulatedInbound.phone = "";
     simulatedInbound.text = "";
     await refreshDashboard();
@@ -928,10 +926,7 @@ onMounted(refreshDashboard);
     <section class="grid-2" id="templates">
       <article class="card form-stack">
         <h3>Inbound Simulation (for demos)</h3>
-        <div class="inline-form">
-          <input v-model="simulatedInbound.name" placeholder="Contact name" />
-          <input v-model="simulatedInbound.phone" placeholder="Phone (+91...)" />
-        </div>
+        <input v-model="simulatedInbound.phone" placeholder="Phone (+91...)" />
         <textarea v-model="simulatedInbound.text" rows="3" placeholder="Inbound WhatsApp message"></textarea>
         <button class="primary" @click="runInboundSimulation">Ingest inbound</button>
       </article>
