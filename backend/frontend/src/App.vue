@@ -2,6 +2,23 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "./api";
 
+const FOLLOW_UP_YEAR = 2026;
+const CALENDAR_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+const CALENDAR_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
 const loading = ref(false);
 const error = ref("");
 const showWhatsAppModal = ref(false);
@@ -33,7 +50,10 @@ const selectedConversation = ref(null);
 
 const noteInput = ref("");
 const messageInput = ref("");
-const followUpInput = ref("");
+const followUpDate = ref("");
+const followUpTime = ref("09:00");
+const showFollowUpCalendar = ref(false);
+const calendarMonth = ref(0);
 
 const templates = ref([]);
 const newTemplate = reactive({
@@ -71,6 +91,28 @@ const states = ["ALL", "NEW", "FOLLOW_UP", "CLOSED"];
 
 const selectedMessages = computed(() => selectedConversation.value?.messages || []);
 const selectedNotes = computed(() => selectedConversation.value?.notes || []);
+const calendarMonthLabel = computed(() => `${CALENDAR_MONTHS[calendarMonth.value]} ${FOLLOW_UP_YEAR}`);
+const canGoPreviousMonth = computed(() => calendarMonth.value > 0);
+const canGoNextMonth = computed(() => calendarMonth.value < 11);
+const calendarDays = computed(() => {
+  const firstDay = new Date(FOLLOW_UP_YEAR, calendarMonth.value, 1).getDay();
+  const daysInMonth = new Date(FOLLOW_UP_YEAR, calendarMonth.value + 1, 0).getDate();
+  const grid = [];
+
+  for (let i = 0; i < firstDay; i += 1) {
+    grid.push(null);
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    grid.push(day);
+  }
+
+  while (grid.length % 7 !== 0) {
+    grid.push(null);
+  }
+
+  return grid;
+});
 
 const applyWhatsAppConfig = (data = {}) => {
   whatsappConfig.businessPhone = data.businessPhone || "";
@@ -102,23 +144,85 @@ const formatDate = (value) => {
   return new Date(value).toLocaleString();
 };
 
-const isoToInput = (value) => {
+const parseIsoToFollowUpFields = (value) => {
   if (!value) {
-    return "";
+    return {
+      date: "",
+      time: "09:00"
+    };
   }
 
   const date = new Date(value);
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 16);
+  return {
+    date: local.toISOString().slice(0, 10),
+    time: local.toISOString().slice(11, 16)
+  };
 };
 
-const inputToIso = (value) => {
-  if (!value) {
+const combineFollowUpToIso = (dateValue, timeValue) => {
+  if (!dateValue) {
     return null;
   }
 
-  return new Date(value).toISOString();
+  const safeTime = timeValue || "09:00";
+  return new Date(`${dateValue}T${safeTime}:00`).toISOString();
+};
+
+const formatFollowUpDisplay = (dateValue, timeValue) => {
+  if (!dateValue) {
+    return "Select a date in 2026";
+  }
+
+  const [year, month, day] = dateValue.split("-");
+  return `${day}/${month}/${year}${timeValue ? `, ${timeValue}` : ""}`;
+};
+
+const openFollowUpCalendar = () => {
+  const selectedDate = followUpDate.value ? new Date(`${followUpDate.value}T00:00:00`) : null;
+  if (selectedDate && selectedDate.getFullYear() === FOLLOW_UP_YEAR) {
+    calendarMonth.value = selectedDate.getMonth();
+  } else {
+    calendarMonth.value = 0;
+  }
+  showFollowUpCalendar.value = true;
+};
+
+const closeFollowUpCalendar = () => {
+  showFollowUpCalendar.value = false;
+};
+
+const goToPreviousMonth = () => {
+  if (calendarMonth.value > 0) {
+    calendarMonth.value -= 1;
+  }
+};
+
+const goToNextMonth = () => {
+  if (calendarMonth.value < 11) {
+    calendarMonth.value += 1;
+  }
+};
+
+const calendarDateValue = (day) =>
+  `${FOLLOW_UP_YEAR}-${String(calendarMonth.value + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+const isSelectedCalendarDay = (day) => {
+  if (!day) {
+    return false;
+  }
+
+  return followUpDate.value === calendarDateValue(day);
+};
+
+const selectCalendarDay = (day) => {
+  if (!day) {
+    return;
+  }
+
+  followUpDate.value = calendarDateValue(day);
+  closeFollowUpCalendar();
 };
 
 const loadConversations = async () => {
@@ -138,7 +242,9 @@ const loadSelectedConversation = async () => {
 
   const data = await api.getConversation(selectedConversationId.value);
   selectedConversation.value = data;
-  followUpInput.value = isoToInput(data.followUpAt);
+  const parsedFollowUp = parseIsoToFollowUpFields(data.followUpAt);
+  followUpDate.value = parsedFollowUp.date;
+  followUpTime.value = parsedFollowUp.time;
 };
 
 const refreshDashboard = async () => {
@@ -215,7 +321,7 @@ const saveConversationMeta = async () => {
   try {
     await api.updateConversation(selectedConversation.value.id, {
       state: selectedConversation.value.state,
-      followUpAt: inputToIso(followUpInput.value)
+      followUpAt: combineFollowUpToIso(followUpDate.value, followUpTime.value)
     });
 
     await loadConversations();
@@ -447,8 +553,37 @@ onMounted(refreshDashboard);
               </select>
             </label>
             <label>
-              Follow-up time
-              <input v-model="followUpInput" type="datetime-local" />
+              Follow-up date
+              <div class="followup-field">
+                <button type="button" class="date-trigger" @click="openFollowUpCalendar">
+                  <span>{{ formatFollowUpDisplay(followUpDate, followUpTime) }}</span>
+                  <span class="calendar-icon">📅</span>
+                </button>
+                <input v-model="followUpTime" type="time" />
+                <div v-if="showFollowUpCalendar" class="calendar-popover">
+                  <div class="calendar-header">
+                    <button type="button" @click="goToPreviousMonth" :disabled="!canGoPreviousMonth">‹</button>
+                    <strong>{{ calendarMonthLabel }}</strong>
+                    <button type="button" @click="goToNextMonth" :disabled="!canGoNextMonth">›</button>
+                  </div>
+                  <div class="calendar-weekdays">
+                    <span v-for="weekday in CALENDAR_WEEKDAYS" :key="weekday">{{ weekday }}</span>
+                  </div>
+                  <div class="calendar-grid">
+                    <button
+                      v-for="(day, dayIndex) in calendarDays"
+                      :key="`${calendarMonth}-${dayIndex}`"
+                      type="button"
+                      class="calendar-day"
+                      :class="{ selected: isSelectedCalendarDay(day), empty: !day }"
+                      :disabled="!day"
+                      @click="selectCalendarDay(day)"
+                    >
+                      {{ day || "" }}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </label>
             <button class="primary" @click="saveConversationMeta">Save state & follow-up</button>
           </div>
@@ -594,6 +729,8 @@ onMounted(refreshDashboard);
         <button class="primary" @click="submitWordPressLead">Push lead</button>
       </article>
     </section>
+
+    <div v-if="showFollowUpCalendar" class="calendar-overlay" @click="closeFollowUpCalendar"></div>
 
     <div v-if="showWhatsAppModal" class="modal-backdrop" @click.self="closeWhatsAppModal">
       <section class="modal-card">
@@ -945,6 +1082,100 @@ h3 {
   gap: 10px;
   align-items: end;
   margin-bottom: 10px;
+}
+
+.followup-field {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.date-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #2a5a4b;
+  background: rgba(8, 16, 23, 0.9);
+  border-radius: 9px;
+  padding: 7px 9px;
+  color: #e2fff1;
+  font-size: 0.9rem;
+}
+
+.calendar-icon {
+  opacity: 0.85;
+}
+
+.calendar-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 290px;
+  background: #0b1720;
+  border: 1px solid #245245;
+  border-radius: 12px;
+  padding: 10px;
+  z-index: 60;
+  box-shadow: 0 14px 30px rgba(2, 9, 13, 0.45);
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.calendar-header button {
+  min-width: 30px;
+  padding: 4px 8px;
+}
+
+.calendar-header strong {
+  font-size: 0.9rem;
+  color: #bfffdc;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 0.74rem;
+  color: #8cb5a7;
+  padding: 3px 0;
+}
+
+.calendar-day {
+  padding: 5px 0;
+  border-radius: 7px;
+  border: 1px solid #22483d;
+  background: rgba(12, 25, 18, 0.55);
+  color: #d6fff0;
+  font-size: 0.8rem;
+}
+
+.calendar-day.empty {
+  border-color: transparent;
+  background: transparent;
+  pointer-events: none;
+}
+
+.calendar-day.selected {
+  border-color: #25d366;
+  background: rgba(29, 163, 95, 0.35);
+  color: #ecfff5;
+}
+
+.calendar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
 }
 
 .messages {
