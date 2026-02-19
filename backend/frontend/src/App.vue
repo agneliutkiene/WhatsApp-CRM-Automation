@@ -496,7 +496,7 @@ const openCrmWindow = () => {
 
 const formatLeadSource = (source) => {
   if (source === "WORDPRESS_FORM") {
-    return "WordPress";
+    return "Website";
   }
   if (source === "WHATSAPP_WEBHOOK" || source === "WHATSAPP") {
     return "WhatsApp";
@@ -985,7 +985,7 @@ onMounted(initializeDashboard);
             <button class="primary" @click="focusNextOpenConversation">Open next</button>
           </div>
           <div class="meta-grid">
-            <label>
+            <label class="meta-field">
               State
               <select v-model="selectedConversation.state">
                 <option value="NEW">NEW</option>
@@ -993,7 +993,7 @@ onMounted(initializeDashboard);
                 <option value="CLOSED">CLOSED</option>
               </select>
             </label>
-            <label>
+            <label class="meta-field">
               Follow-up date
               <div class="followup-field">
                 <button type="button" class="date-trigger" @click="openFollowUpCalendar">
@@ -1052,7 +1052,9 @@ onMounted(initializeDashboard);
                 </div>
               </div>
             </label>
-            <button class="primary" @click="saveConversationMeta">Save state & follow-up</button>
+            <div class="meta-action">
+              <button class="primary meta-save-btn" @click="saveConversationMeta">Save state & follow-up</button>
+            </div>
           </div>
 
           <div class="messages">
@@ -2008,10 +2010,28 @@ h3 {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: 180px 220px 1fr;
+  grid-template-columns: minmax(170px, 220px) minmax(280px, 420px) auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 10px;
+}
+
+.meta-field {
+  display: grid;
+  gap: 6px;
+}
+
+.meta-action {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
+.meta-save-btn {
+  width: auto;
+  min-width: 240px;
+  max-width: 300px;
+  white-space: nowrap;
 }
 
 .conversation-quick-actions {
