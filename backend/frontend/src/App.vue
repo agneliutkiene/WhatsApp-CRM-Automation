@@ -32,23 +32,9 @@ const showAuthModal = ref(false);
 const authSaving = ref(false);
 const authPasswordInput = ref(apiAuth.getPassword());
 
-const showSetupModal = ref(false);
-const setupSaving = ref(false);
-const whatsappSetup = reactive({
-  connected: false,
-  webhookConfirmed: false,
-  testMessageSent: false,
-  completed: false,
-  webhookUrl: "",
-  verifyToken: "",
-  webhookConfirmedAt: null,
-  lastTestSentAt: null
-});
-
-const setupTest = reactive({
-  phone: "",
-  text: "This is a setup test from my WhatsApp CRM dashboard."
-});
+const currentView = ref("main");
+const mainAppUrl = ref("/");
+const crmAppUrl = ref("?view=crm");
 
 const whatsappConfig = reactive({
   businessPhone: "",
@@ -125,15 +111,12 @@ const wordpressLead = reactive({
 });
 
 const states = ["ALL", "NEW", "FOLLOW_UP", "CLOSED"];
+const isCrmView = computed(() => currentView.value === "crm");
 
 const selectedMessages = computed(() => selectedConversation.value?.messages || []);
 const selectedNotes = computed(() => selectedConversation.value?.notes || []);
 const canGoPreviousMonth = computed(() => calendarMonth.value > 0);
 const canGoNextMonth = computed(() => calendarMonth.value < 11);
-const setupCompletedSteps = computed(
-  () =>
-    [whatsappSetup.connected, whatsappSetup.webhookConfirmed, whatsappSetup.testMessageSent].filter(Boolean).length
-);
 const crmSummary = computed(() => {
   return crmLeads.value.reduce(
     (summary, lead) => {
@@ -261,17 +244,6 @@ const applyWhatsAppConfig = (data = {}) => {
   whatsappConfig.verifyToken = data.verifyToken || "";
   whatsappConfig.accessToken = "";
   whatsappConnected.value = Boolean(data.isConnected);
-};
-
-const applyWhatsAppSetup = (data = {}) => {
-  whatsappSetup.connected = Boolean(data.connected);
-  whatsappSetup.webhookConfirmed = Boolean(data.webhookConfirmed);
-  whatsappSetup.testMessageSent = Boolean(data.testMessageSent);
-  whatsappSetup.completed = Boolean(data.completed);
-  whatsappSetup.webhookUrl = data.webhookUrl || "";
-  whatsappSetup.verifyToken = data.verifyToken || "";
-  whatsappSetup.webhookConfirmedAt = data.webhookConfirmedAt || null;
-  whatsappSetup.lastTestSentAt = data.lastTestSentAt || null;
 };
 
 const applyAutomationSafety = (data = {}) => {
@@ -504,6 +476,24 @@ const jumpToCrm = () => {
   crmSection?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+const initializeView = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  currentView.value = url.searchParams.get("view") === "crm" ? "crm" : "main";
+  mainAppUrl.value = `${url.origin}${url.pathname}`;
+  crmAppUrl.value = `${url.origin}${url.pathname}?view=crm`;
+};
+
+const openCrmWindow = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.open(crmAppUrl.value, "_blank", "noopener,noreferrer");
+};
+
 const formatLeadSource = (source) => {
   if (source === "WORDPRESS_FORM") {
     return "WordPress";
@@ -515,20 +505,6 @@ const formatLeadSource = (source) => {
     return "Manual";
   }
   return source || "Unknown";
-};
-
-const copyValue = async (value, successMessage) => {
-  if (!value) {
-    error.value = "Nothing to copy yet.";
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(value);
-    showSuccess(successMessage);
-  } catch (err) {
-    error.value = "Clipboard copy failed. Copy it manually.";
-  }
 };
 
 const applySuggestedCredentials = () => {
@@ -564,11 +540,6 @@ const loadSelectedConversation = async () => {
   followUpTime.value = parsedFollowUp.time;
 };
 
-const loadWhatsAppSetup = async () => {
-  const data = await api.getWhatsAppStatus();
-  applyWhatsAppSetup(data || {});
-};
-
 const refreshDashboard = async () => {
   loading.value = true;
   error.value = "";
@@ -589,7 +560,6 @@ const refreshDashboard = async () => {
     applyAutomationSafety(nextAutomationSafety || {});
     automationWarnings.value = [...(nextAutomationSafety?.warnings || [])];
 
-    await loadWhatsAppSetup();
     await loadCrmLeads();
     await loadConversations();
     await loadSelectedConversation();
@@ -604,7 +574,6 @@ const openWhatsAppModal = async () => {
   try {
     const data = await api.getWhatsAppConfig();
     applyWhatsAppConfig(data || {});
-    showSetupModal.value = false;
     showWhatsAppModal.value = true;
   } catch (err) {
     setError(err);
@@ -633,7 +602,6 @@ const saveWhatsAppConfig = async () => {
 
     const data = await api.updateWhatsAppConfig(payload);
     applyWhatsAppConfig(data || {});
-    await loadWhatsAppSetup();
     showWhatsAppModal.value = false;
     showSuccess("WhatsApp credentials saved.");
   } catch (err) {
@@ -641,64 +609,6 @@ const saveWhatsAppConfig = async () => {
   } finally {
     whatsappSaving.value = false;
   }
-};
-
-const confirmWebhookSetup = async () => {
-  try {
-    await api.confirmWhatsAppWebhook();
-    await loadWhatsAppSetup();
-    showSuccess("Webhook step marked as complete.");
-  } catch (err) {
-    setError(err);
-  }
-};
-
-const sendSetupTest = async () => {
-  if (!setupTest.phone.trim()) {
-    error.value = "Test phone is required.";
-    return;
-  }
-
-  setupSaving.value = true;
-
-  try {
-    const data = await api.sendWhatsAppTestMessage({
-      phone: setupTest.phone.trim(),
-      text: setupTest.text.trim() || "This is a WhatsApp CRM setup test message."
-    });
-
-    const conversationId = data?.conversation?.id || "";
-    await loadWhatsAppSetup();
-    await loadCrmLeads();
-    await loadConversations();
-
-    if (conversationId) {
-      selectedConversationId.value = conversationId;
-      highlightedConversationId.value = conversationId;
-      setTimeout(() => {
-        if (highlightedConversationId.value === conversationId) {
-          highlightedConversationId.value = "";
-        }
-      }, 2800);
-      await loadSelectedConversation();
-      jumpToInbox();
-    }
-
-    showSuccess("Setup test sent. Check WhatsApp and the CRM timeline.");
-  } catch (err) {
-    setError(err);
-  } finally {
-    setupSaving.value = false;
-  }
-};
-
-const openSetupWizard = () => {
-  setupTest.phone = setupTest.phone || whatsappConfig.businessPhone || "";
-  showSetupModal.value = true;
-};
-
-const closeSetupWizard = () => {
-  showSetupModal.value = false;
 };
 
 const unlockDashboard = async () => {
@@ -949,6 +859,8 @@ watch(selectedConversationId, async () => {
 });
 
 const initializeDashboard = async () => {
+  initializeView();
+
   try {
     const health = await api.getHealth();
     authRequired.value = Boolean(health?.authRequired);
@@ -972,11 +884,14 @@ onMounted(initializeDashboard);
     <header class="topbar">
       <div class="brand">&lt;/&gt; WhatsAppCRM</div>
       <nav class="top-nav">
-        <a href="#top">Home</a>
-        <a href="#crm">CRM</a>
-        <a href="#inbox">Inbox</a>
-        <a href="#automation">Automation</a>
-        <a href="#templates">Templates</a>
+        <a v-if="isCrmView" :href="mainAppUrl">Main App</a>
+        <button v-else class="nav-link-button" @click="openCrmWindow">CRM</button>
+        <a v-if="!isCrmView" href="#inbox">Inbox</a>
+        <a v-if="!isCrmView" href="#automations">Automation</a>
+        <a v-if="!isCrmView" href="#templates">Templates</a>
+        <a v-if="isCrmView" href="#crm">CRM Board</a>
+        <a v-if="isCrmView" href="#lead-capture">Lead Capture</a>
+        <a href="#top">Top</a>
       </nav>
     </header>
 
@@ -991,7 +906,6 @@ onMounted(initializeDashboard);
         <span class="connection-pill" :data-connected="whatsappConnected">
           {{ whatsappConnected ? "WhatsApp connected" : "WhatsApp not connected" }}
         </span>
-        <button class="refresh" @click="openSetupWizard">Setup checklist</button>
         <button class="connect-whatsapp" @click="openWhatsAppModal">Connect your WhatsApp</button>
         <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
         <button v-if="authRequired" class="refresh" @click="lockDashboard">Lock</button>
@@ -1001,135 +915,8 @@ onMounted(initializeDashboard);
     <p v-if="error" class="error-banner">{{ error }}</p>
     <p v-if="success" class="success-banner">{{ success }}</p>
 
-    <section v-if="!whatsappSetup.completed" class="card setup-card">
-      <div class="setup-heading">
-        <h3>Quick setup checklist</h3>
-        <span class="setup-progress">{{ setupCompletedSteps }}/3 complete</span>
-      </div>
-      <div class="setup-step-grid">
-        <article class="setup-step" :data-done="whatsappSetup.connected">
-          <h4>1. Connect credentials</h4>
-          <p class="setup-copy">Suggested format: phone `+919876543210`, ID from Meta API Setup, token from Meta.</p>
-          <div class="setup-actions">
-            <button @click="openWhatsAppModal">Open credentials form</button>
-            <button @click="applySuggestedCredentials">Use suggested examples</button>
-          </div>
-        </article>
-        <article class="setup-step" :data-done="whatsappSetup.webhookConfirmed">
-          <h4>2. Verify webhook</h4>
-          <div class="setup-inline">
-            <label>
-              Webhook URL
-              <input :value="whatsappSetup.webhookUrl" readonly />
-            </label>
-            <label>
-              Verify token
-              <input :value="whatsappSetup.verifyToken || 'Set in Connect your WhatsApp'" readonly />
-            </label>
-          </div>
-          <div class="setup-actions">
-            <button @click="copyValue(whatsappSetup.webhookUrl, 'Webhook URL copied.')">Copy URL</button>
-            <button @click="copyValue(whatsappSetup.verifyToken, 'Verify token copied.')">Copy token</button>
-            <button @click="confirmWebhookSetup" :disabled="!whatsappSetup.connected">Mark webhook verified</button>
-          </div>
-        </article>
-        <article class="setup-step" :data-done="whatsappSetup.testMessageSent">
-          <h4>3. Send test message</h4>
-          <p class="setup-copy">Enter your own WhatsApp number and send a safe test text.</p>
-          <div class="setup-inline">
-            <label>
-              Test phone
-              <input v-model="setupTest.phone" placeholder="+919876543210" />
-            </label>
-            <label>
-              Test text
-              <input v-model="setupTest.text" placeholder="Hi, this is my CRM setup test." />
-            </label>
-          </div>
-          <div class="setup-actions">
-            <button class="primary" @click="sendSetupTest" :disabled="setupSaving">
-              {{ setupSaving ? "Sending..." : "Send setup test" }}
-            </button>
-            <button @click="openSetupWizard">Open full assistant</button>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="stats-grid">
-      <article>
-        <h2>{{ analytics.newInquiriesToday }}</h2>
-        <p>New inquiries today</p>
-      </article>
-      <article>
-        <h2>{{ analytics.pendingFollowUps }}</h2>
-        <p>Pending follow-ups</p>
-      </article>
-      <article>
-        <h2>{{ analytics.closedConversations }}</h2>
-        <p>Closed conversations</p>
-      </article>
-      <article>
-        <h2>{{ analytics.totalConversations }}</h2>
-        <p>Total conversations</p>
-      </article>
-    </section>
-
-    <section class="card crm-overview" id="crm">
-      <div class="setup-heading">
-        <h3>CRM Lead Board</h3>
-        <span class="setup-progress">{{ crmSummary.total }} total leads</span>
-      </div>
-      <div class="crm-stats-grid">
-        <article>
-          <h4>{{ crmSummary.new }}</h4>
-          <p>New</p>
-        </article>
-        <article>
-          <h4>{{ crmSummary.followUp }}</h4>
-          <p>Follow-up</p>
-        </article>
-        <article>
-          <h4>{{ crmSummary.closed }}</h4>
-          <p>Closed</p>
-        </article>
-        <article>
-          <h4>{{ crmSummary.wordpress }}</h4>
-          <p>WordPress leads</p>
-        </article>
-      </div>
-      <div class="crm-toolbar">
-        <select v-model="crmFilters.source">
-          <option value="ALL">All sources</option>
-          <option value="WORDPRESS_FORM">WordPress only</option>
-          <option value="WHATSAPP_WEBHOOK">WhatsApp webhook</option>
-          <option value="WHATSAPP">WhatsApp native</option>
-          <option value="MANUAL_TEST">Manual test</option>
-          <option value="SETUP_TEST">Setup test</option>
-        </select>
-        <input v-model="crmFilters.search" placeholder="Search leads by name, phone, or text" />
-      </div>
-      <div class="crm-list">
-        <article v-for="lead in filteredCrmLeads" :key="`crm-${lead.id}`" class="crm-item">
-          <div class="crm-item-main">
-            <div class="crm-line">
-              <strong>{{ lead.name }}</strong>
-              <span class="pill" :data-state="lead.state">{{ lead.state }}</span>
-            </div>
-            <p>{{ lead.phone }}</p>
-            <p class="dim">{{ lead.lastMessageText }}</p>
-          </div>
-          <div class="crm-item-meta">
-            <span class="source-chip">{{ formatLeadSource(lead.source) }}</span>
-            <small>{{ formatDate(lead.lastMessageAt) }}</small>
-            <button @click="openLeadFromCrm(lead.id)">Open in inbox</button>
-          </div>
-        </article>
-        <p v-if="filteredCrmLeads.length === 0" class="dim">No leads match this CRM filter.</p>
-      </div>
-    </section>
-
-    <section class="workspace" id="inbox">
+    <template v-if="!isCrmView">
+      <section class="workspace" id="inbox">
       <aside class="inbox-panel">
         <div class="toolbar-row">
           <select v-model="filters.state">
@@ -1169,8 +956,27 @@ onMounted(initializeDashboard);
         <p v-if="visibleConversations.length === 0" class="dim">No conversations match the current filter.</p>
       </aside>
 
-      <main class="detail-panel" v-if="selectedConversation">
-        <section class="card conversation-card">
+      <main class="detail-panel">
+        <section class="stats-grid stats-grid-inline">
+          <article>
+            <h2>{{ analytics.newInquiriesToday }}</h2>
+            <p>New inquiries today</p>
+          </article>
+          <article>
+            <h2>{{ analytics.pendingFollowUps }}</h2>
+            <p>Pending follow-ups</p>
+          </article>
+          <article>
+            <h2>{{ analytics.closedConversations }}</h2>
+            <p>Closed conversations</p>
+          </article>
+          <article>
+            <h2>{{ analytics.totalConversations }}</h2>
+            <p>Total conversations</p>
+          </article>
+        </section>
+
+        <section v-if="selectedConversation" class="card conversation-card">
           <h3>Conversation</h3>
           <div class="conversation-quick-actions">
             <button @click="quickSetConversationState(selectedConversation.id, 'NEW')">Mark NEW</button>
@@ -1278,6 +1084,10 @@ onMounted(initializeDashboard);
           </div>
         </section>
 
+        <section v-else class="card">
+          <p>Select a conversation from the inbox.</p>
+        </section>
+
         <section class="card">
           <h3>Notes & Memory</h3>
           <div class="notes-list">
@@ -1293,15 +1103,10 @@ onMounted(initializeDashboard);
           </div>
         </section>
       </main>
+      </section>
 
-      <main class="detail-panel" v-else>
-        <section class="card">
-          <p>Select a conversation from the inbox.</p>
-        </section>
-      </main>
-    </section>
-
-    <section class="grid-2" id="automation">
+      <div id="automation"></div>
+      <section class="grid-1" id="automations">
       <article class="card automation-card">
         <h3>Automation Settings</h3>
         <div class="automation-toggle-list">
@@ -1417,7 +1222,9 @@ onMounted(initializeDashboard);
 
         <button class="primary" @click="saveAutomation" :disabled="automationClientErrors.length > 0">Save automation</button>
       </article>
+      </section>
 
+      <section class="grid-1" id="templates">
       <article class="card template-manager-card">
         <h3>Template Manager</h3>
         <div class="template-manager-form">
@@ -1441,31 +1248,89 @@ onMounted(initializeDashboard);
           </li>
         </ul>
       </article>
-    </section>
+      </section>
+    </template>
 
-    <section class="grid-1" id="templates">
+    <template v-else>
+      <section class="card crm-overview" id="crm">
+        <div class="setup-heading">
+          <h3>CRM Lead Board</h3>
+          <span class="setup-progress">{{ crmSummary.total }} total leads</span>
+        </div>
+        <div class="crm-stats-grid">
+          <article>
+            <h4>{{ crmSummary.new }}</h4>
+            <p>New</p>
+          </article>
+          <article>
+            <h4>{{ crmSummary.followUp }}</h4>
+            <p>Follow-up</p>
+          </article>
+          <article>
+            <h4>{{ crmSummary.closed }}</h4>
+            <p>Closed</p>
+          </article>
+          <article>
+            <h4>{{ crmSummary.wordpress }}</h4>
+            <p>Website leads</p>
+          </article>
+        </div>
+        <div class="crm-toolbar">
+          <select v-model="crmFilters.source">
+            <option value="ALL">All sources</option>
+            <option value="WORDPRESS_FORM">Website form</option>
+            <option value="WHATSAPP_WEBHOOK">WhatsApp webhook</option>
+            <option value="WHATSAPP">WhatsApp native</option>
+            <option value="MANUAL_TEST">Manual test</option>
+            <option value="SETUP_TEST">Setup test</option>
+          </select>
+          <input v-model="crmFilters.search" placeholder="Search leads by name, phone, or text" />
+        </div>
+        <div class="crm-list">
+          <article v-for="lead in filteredCrmLeads" :key="`crm-${lead.id}`" class="crm-item">
+            <div class="crm-item-main">
+              <div class="crm-line">
+                <strong>{{ lead.name }}</strong>
+                <span class="pill" :data-state="lead.state">{{ lead.state }}</span>
+              </div>
+              <p>{{ lead.phone }}</p>
+              <p class="dim">{{ lead.lastMessageText }}</p>
+            </div>
+            <div class="crm-item-meta">
+              <span class="source-chip">{{ formatLeadSource(lead.source) }}</span>
+              <small>{{ formatDate(lead.lastMessageAt) }}</small>
+              <button @click="openLeadFromCrm(lead.id)">Open in inbox</button>
+            </div>
+          </article>
+          <p v-if="filteredCrmLeads.length === 0" class="dim">No leads match this CRM filter.</p>
+        </div>
+      </section>
+
+      <section class="grid-1" id="lead-capture">
       <article class="card form-stack">
-        <h3>WordPress Lead -> WhatsApp CRM</h3>
+        <h3>Lead -> WhatsApp CRM</h3>
         <div class="inline-form">
           <input v-model="wordpressLead.name" placeholder="Lead name" />
           <input v-model="wordpressLead.phone" placeholder="Phone (+91...)" />
         </div>
         <textarea v-model="wordpressLead.message" rows="3" placeholder="Lead message"></textarea>
-        <input v-model="wordpressLead.sourceUrl" placeholder="WordPress page URL" />
+        <input v-model="wordpressLead.sourceUrl" placeholder="Lead source URL" />
         <button class="primary" @click="submitWordPressLead">Push lead</button>
         <p class="card-hint">
           Leads appear in <strong>CRM Lead Board</strong> and Inbox as <strong>NEW</strong> conversations.
           <button type="button" class="link-button" @click="jumpToCrm">Go to CRM</button>
-          <button type="button" class="link-button" @click="jumpToInbox">Go to inbox</button>
         </p>
       </article>
-    </section>
+      </section>
+    </template>
 
     <div
       v-if="showFollowUpCalendar || showFollowUpTimeDropdown || showAutomationStartDropdown || showAutomationEndDropdown"
       class="calendar-overlay"
       @click="closeFollowUpPickers"
     ></div>
+
+    <a href="#top" class="scroll-top">Top</a>
 
     <div v-if="showWhatsAppModal" class="modal-backdrop" @click.self="closeWhatsAppModal">
       <section class="modal-card">
@@ -1501,50 +1366,6 @@ onMounted(initializeDashboard);
           <button @click="closeWhatsAppModal">Cancel</button>
           <button class="primary" @click="saveWhatsAppConfig" :disabled="whatsappSaving">
             {{ whatsappSaving ? "Saving..." : "Save credentials" }}
-          </button>
-        </div>
-      </section>
-    </div>
-
-    <div v-if="showSetupModal" class="modal-backdrop" @click.self="closeSetupWizard">
-      <section class="modal-card">
-        <h3>Setup assistant</h3>
-        <p class="dim">Complete these steps once to connect your WhatsApp to this CRM layer.</p>
-        <div class="setup-grid">
-          <p :data-done="whatsappSetup.connected"><strong>1.</strong> Credentials connected</p>
-          <p :data-done="whatsappSetup.webhookConfirmed"><strong>2.</strong> Webhook verified</p>
-          <p :data-done="whatsappSetup.testMessageSent"><strong>3.</strong> Test message sent</p>
-        </div>
-        <div class="modal-grid">
-          <label>
-            Webhook URL
-            <input :value="whatsappSetup.webhookUrl" readonly />
-          </label>
-          <label>
-            Verify token
-            <input :value="whatsappSetup.verifyToken || 'Set in Connect your WhatsApp'" readonly />
-          </label>
-        </div>
-        <div class="setup-actions modal-actions-left">
-          <button @click="openWhatsAppModal">Connect credentials</button>
-          <button @click="confirmWebhookSetup" :disabled="!whatsappSetup.connected">I verified webhook</button>
-          <button @click="copyValue(whatsappSetup.webhookUrl, 'Webhook URL copied.')">Copy URL</button>
-          <button @click="copyValue(whatsappSetup.verifyToken, 'Verify token copied.')">Copy token</button>
-        </div>
-        <div class="modal-grid">
-          <label>
-            Test phone
-            <input v-model="setupTest.phone" placeholder="+91..." />
-          </label>
-          <label>
-            Test text
-            <input v-model="setupTest.text" placeholder="Test message text" />
-          </label>
-        </div>
-        <div class="modal-actions">
-          <button @click="closeSetupWizard">Close</button>
-          <button class="primary" @click="sendSetupTest" :disabled="setupSaving">
-            {{ setupSaving ? "Sending..." : "Send test" }}
           </button>
         </div>
       </section>
@@ -1598,27 +1419,11 @@ onMounted(initializeDashboard);
 }
 
 .bg-blob {
-  position: absolute;
-  width: 520px;
-  height: 520px;
-  right: -180px;
-  top: -210px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(46, 149, 109, 0.28) 0%, rgba(46, 149, 109, 0) 72%);
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .bg-ring {
-  position: absolute;
-  width: 620px;
-  height: 620px;
-  left: -340px;
-  bottom: -420px;
-  border-radius: 50%;
-  border: 1px solid rgba(83, 154, 125, 0.12);
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .topbar {
@@ -1629,13 +1434,12 @@ onMounted(initializeDashboard);
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  background: linear-gradient(180deg, rgba(14, 25, 23, 0.94), rgba(10, 19, 18, 0.9));
+  background: rgba(12, 22, 20, 0.96);
   border: 1px solid var(--line-main);
   border-radius: 18px;
   padding: 13px 17px;
   margin-bottom: 16px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 10px 28px rgba(2, 8, 8, 0.35);
+  backdrop-filter: none;
 }
 
 .brand {
@@ -1659,7 +1463,21 @@ onMounted(initializeDashboard);
   opacity: 0.9;
 }
 
+.nav-link-button {
+  border: 0;
+  background: transparent;
+  color: #9fbaaf;
+  font-size: 0.82rem;
+  padding: 0;
+  opacity: 0.9;
+}
+
 .top-nav a:hover {
+  color: #c5f4df;
+  opacity: 1;
+}
+
+.top-nav .nav-link-button:hover {
   color: #c5f4df;
   opacity: 1;
 }
@@ -1671,12 +1489,11 @@ onMounted(initializeDashboard);
   gap: 24px;
   align-items: start;
   margin-bottom: 16px;
-  background: linear-gradient(180deg, rgba(15, 27, 25, 0.93), rgba(10, 19, 18, 0.9));
+  background: rgba(12, 22, 20, 0.96);
   border: 1px solid var(--line-main);
   border-radius: 18px;
   padding: 18px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 14px 34px rgba(2, 8, 8, 0.34);
+  backdrop-filter: none;
 }
 
 .hero-actions {
@@ -1718,28 +1535,22 @@ h1 {
 
 .refresh {
   border: 1px solid #365949;
-  background: linear-gradient(180deg, rgba(29, 52, 45, 0.84), rgba(20, 37, 33, 0.84));
+  background: rgba(24, 42, 36, 0.92);
   color: #b7d6c8;
   border-radius: 11px;
   font-size: 0.86rem;
   padding: 7px 12px;
-  transition: transform 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  transition: border-color 0.16s ease, color 0.16s ease;
 }
 
 .connect-whatsapp {
   border: 1px solid #29a66d;
-  background: linear-gradient(130deg, #1a704a, #24a567);
+  background: #1f8f5e;
   color: #fff;
   border-radius: 11px;
   font-size: 0.86rem;
   padding: 7px 12px;
-  box-shadow: 0 10px 22px rgba(18, 103, 67, 0.34);
-  transition: transform 0.16s ease, filter 0.16s ease;
-}
-
-.refresh:hover,
-.connect-whatsapp:hover {
-  transform: translateY(-1px);
+  transition: border-color 0.16s ease, background 0.16s ease;
 }
 
 .refresh:hover {
@@ -1748,7 +1559,7 @@ h1 {
 }
 
 .connect-whatsapp:hover {
-  filter: brightness(1.05);
+  background: #218a5c;
 }
 
 .error-banner {
@@ -1773,7 +1584,7 @@ h1 {
   display: grid;
   gap: 12px;
   margin-bottom: 16px;
-  background: linear-gradient(180deg, rgba(14, 27, 24, 0.93), rgba(11, 20, 19, 0.9));
+  background: rgba(12, 22, 20, 0.96);
 }
 
 .setup-heading {
@@ -1872,11 +1683,11 @@ h1 {
 }
 
 .stats-grid article {
-  background: linear-gradient(180deg, rgba(14, 24, 23, 0.92), rgba(10, 18, 17, 0.92));
+  background: rgba(12, 22, 20, 0.94);
   border: 1px solid #2a4c40;
   border-radius: 14px;
   padding: 14px;
-  box-shadow: 0 8px 20px rgba(3, 8, 8, 0.22);
+  box-shadow: none;
 }
 
 .stats-grid h2 {
@@ -1888,6 +1699,10 @@ h1 {
 .stats-grid p {
   margin: 6px 0 0;
   color: #94b4a7;
+}
+
+.stats-grid-inline {
+  margin-bottom: 0;
 }
 
 .crm-overview {
@@ -1978,31 +1793,31 @@ h1 {
   margin-bottom: 14px;
 }
 
-#crm,
 #inbox,
+#crm,
 #automation,
+#automations,
 #templates {
+  scroll-margin-top: 92px;
+}
+
+#lead-capture {
   scroll-margin-top: 92px;
 }
 
 .inbox-panel,
 .card {
-  background: linear-gradient(180deg, rgba(14, 24, 23, 0.94), rgba(9, 18, 17, 0.94));
+  background: rgba(12, 22, 20, 0.96);
   border: 1px solid #2a4d41;
   border-radius: 16px;
   padding: 14px;
-  box-shadow:
-    inset 0 1px 0 rgba(182, 220, 202, 0.06),
-    0 14px 30px rgba(2, 8, 8, 0.24);
+  box-shadow: none;
 }
 
 .conversation-card {
-  background: linear-gradient(165deg, rgba(14, 29, 26, 0.96), rgba(8, 19, 18, 0.96));
+  background: rgba(13, 24, 22, 0.98);
   border-color: #3a725d;
-  box-shadow:
-    inset 0 1px 0 rgba(196, 235, 216, 0.08),
-    0 0 0 1px rgba(69, 146, 111, 0.28),
-    0 14px 34px rgba(4, 12, 10, 0.32);
+  box-shadow: none;
 }
 
 .conversation-card h3 {
@@ -2051,7 +1866,7 @@ textarea {
   font-size: 0.9rem;
   background: rgba(9, 17, 17, 0.94);
   color: #deefe7;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color 0.16s ease;
 }
 
 textarea {
@@ -2092,7 +1907,7 @@ select:focus-visible,
 .time-trigger:focus-visible {
   outline: none;
   border-color: #4b8b73;
-  box-shadow: 0 0 0 3px rgba(51, 123, 95, 0.24);
+  box-shadow: none;
 }
 
 .conversation-list {
@@ -2111,23 +1926,23 @@ select:focus-visible,
   padding: 10px;
   cursor: pointer;
   background: rgba(10, 18, 17, 0.9);
-  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .conversation-list li:hover {
   border-color: #4d856f;
   background: rgba(14, 26, 24, 0.92);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .conversation-list li.active {
   border-color: #3a8a67;
   background: rgba(20, 54, 43, 0.62);
-  box-shadow: 0 0 0 1px rgba(56, 140, 103, 0.22);
+  box-shadow: none;
 }
 
 .conversation-list li.inserted {
-  animation: insertedPulse 1s ease-in-out 2;
+  animation: none;
 }
 
 .line1 {
@@ -2278,7 +2093,7 @@ h3 {
   border-radius: 14px;
   padding: 10px;
   z-index: 72;
-  box-shadow: 0 16px 34px rgba(3, 10, 10, 0.46);
+  box-shadow: none;
 }
 
 .calendar-header {
@@ -2363,7 +2178,7 @@ h3 {
   border-radius: 14px;
   padding: 8px;
   z-index: 72;
-  box-shadow: 0 16px 34px rgba(3, 10, 10, 0.46);
+  box-shadow: none;
   display: grid;
   gap: 6px;
 }
@@ -2477,23 +2292,23 @@ h3 {
 .template-strip button,
 button {
   border: 1px solid #375a4e;
-  background: linear-gradient(180deg, rgba(28, 45, 39, 0.82), rgba(19, 32, 28, 0.82));
+  background: rgba(23, 37, 33, 0.88);
   border-radius: 10px;
   padding: 6px 11px;
   font-size: 0.86rem;
   color: #b3decb;
-  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 button.primary {
   border-color: #2ea46e;
-  background: linear-gradient(130deg, #1a6e4a, #24a567);
+  background: #1f8f5e;
   color: white;
-  box-shadow: 0 10px 22px rgba(16, 91, 60, 0.34);
+  box-shadow: none;
 }
 
 button:hover {
-  transform: translateY(-1px);
+  transform: none;
   border-color: #4a7b66;
 }
 
@@ -2661,6 +2476,21 @@ button.primary:hover {
   font-size: 0.84rem;
 }
 
+.scroll-top {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 70;
+  border: 1px solid #3b6556;
+  border-radius: 999px;
+  background: rgba(13, 26, 22, 0.88);
+  color: #c5e8d8;
+  font-size: 0.8rem;
+  text-decoration: none;
+  padding: 7px 11px;
+  box-shadow: none;
+}
+
 .field-hint {
   display: block;
   margin-top: 6px;
@@ -2680,11 +2510,11 @@ button.primary:hover {
 
 .modal-card {
   width: min(680px, 100%);
-  background: linear-gradient(180deg, rgba(15, 26, 24, 0.98), rgba(11, 20, 19, 0.98));
+  background: rgba(12, 22, 20, 0.98);
   border: 1px solid #315448;
   border-radius: 18px;
   padding: 18px;
-  box-shadow: 0 20px 46px rgba(1, 7, 7, 0.46);
+  box-shadow: none;
 }
 
 .modal-grid {
@@ -2717,10 +2547,10 @@ button.primary:hover {
 
 @keyframes insertedPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(38, 211, 102, 0.55);
+    box-shadow: none;
   }
   100% {
-    box-shadow: 0 0 0 8px rgba(38, 211, 102, 0);
+    box-shadow: none;
   }
 }
 
