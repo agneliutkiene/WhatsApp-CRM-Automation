@@ -668,7 +668,7 @@ onMounted(refreshDashboard);
       </aside>
 
       <main class="detail-panel" v-if="selectedConversation">
-        <section class="card">
+        <section class="card conversation-card">
           <h3>Conversation</h3>
           <div class="meta-grid">
             <label>
@@ -1203,6 +1203,18 @@ h1 {
   border-radius: 14px;
   padding: 14px;
   box-shadow: inset 0 1px 0 rgba(165, 232, 199, 0.05);
+}
+
+.conversation-card {
+  background: linear-gradient(165deg, rgba(11, 27, 35, 0.95), rgba(8, 20, 29, 0.95));
+  border-color: #2d6656;
+  box-shadow:
+    inset 0 1px 0 rgba(173, 245, 210, 0.08),
+    0 0 0 1px rgba(46, 162, 111, 0.18);
+}
+
+.conversation-card h3 {
+  color: #d4ffe9;
 }
 
 .toolbar-row {
