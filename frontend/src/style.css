@@ -1,7 +1,7 @@
 :root {
   font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
-  color: #12332d;
-  background: linear-gradient(140deg, #e9fff2 0%, #f2fff8 45%, #deffef 100%);
+  color: #e7f7ef;
+  background: radial-gradient(circle at 15% 10%, #162d26 0%, #0a121a 48%, #070d13 100%);
   line-height: 1.45;
 }
 
@@ -12,6 +12,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  background: #070d13;
 }
 
 button,

@@ -358,6 +358,18 @@ onMounted(refreshDashboard);
 
 <template>
   <div class="app-shell">
+    <div class="bg-blob"></div>
+    <div class="bg-ring"></div>
+
+    <header class="topbar">
+      <div class="brand">&lt;/&gt; WhatsAppCRM</div>
+      <nav class="top-nav">
+        <a href="#inbox">Inbox</a>
+        <a href="#automation">Automation</a>
+        <a href="#templates">Templates</a>
+      </nav>
+    </header>
+
     <header class="hero">
       <div>
         <h1>WhatsApp CRM & Automation</h1>
@@ -395,7 +407,7 @@ onMounted(refreshDashboard);
       </article>
     </section>
 
-    <section class="workspace">
+    <section class="workspace" id="inbox">
       <aside class="inbox-panel">
         <div class="toolbar-row">
           <select v-model="filters.state">
@@ -491,7 +503,7 @@ onMounted(refreshDashboard);
       </main>
     </section>
 
-    <section class="grid-2">
+    <section class="grid-2" id="automation">
       <article class="card">
         <h3>Automation Settings</h3>
         <label><input type="checkbox" v-model="automation.autoReplyOnFirstInquiry" /> Auto-reply on first inquiry</label>
@@ -560,7 +572,7 @@ onMounted(refreshDashboard);
       </article>
     </section>
 
-    <section class="grid-2">
+    <section class="grid-2" id="templates">
       <article class="card">
         <h3>Inbound Simulation (for demos)</h3>
         <div class="inline-form">
@@ -621,17 +633,91 @@ onMounted(refreshDashboard);
 
 <style scoped>
 .app-shell {
-  max-width: 1280px;
+  position: relative;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding: 30px 20px 56px;
+  color: #e7f7ef;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.bg-blob {
+  position: absolute;
+  width: 460px;
+  height: 460px;
+  right: -150px;
+  top: -180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 211, 102, 0.45) 0%, rgba(37, 211, 102, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-ring {
+  position: absolute;
+  width: 620px;
+  height: 620px;
+  left: -340px;
+  bottom: -420px;
+  border-radius: 50%;
+  border: 1px solid rgba(43, 241, 140, 0.16);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.topbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: rgba(11, 20, 29, 0.84);
+  border: 1px solid #1b3a33;
+  border-radius: 16px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(6px);
+}
+
+.brand {
+  font-size: 1.06rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: #84f7c5;
+}
+
+.top-nav {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.top-nav a {
+  text-decoration: none;
+  color: #99c6b5;
+  font-size: 0.88rem;
+  transition: color 0.2s ease;
+}
+
+.top-nav a:hover {
+  color: #7df0bc;
 }
 
 .hero {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   gap: 24px;
   align-items: start;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  background: rgba(11, 20, 29, 0.84);
+  border: 1px solid #1b3a33;
+  border-radius: 16px;
+  padding: 18px;
+  backdrop-filter: blur(6px);
 }
 
 .hero-actions {
@@ -646,64 +732,67 @@ onMounted(refreshDashboard);
   font-size: 0.78rem;
   padding: 5px 10px;
   border-radius: 999px;
-  border: 1px solid #9fd4be;
-  background: #f0fff7;
-  color: #0c5f52;
+  border: 1px solid #296b56;
+  background: rgba(25, 93, 66, 0.25);
+  color: #89edbb;
 }
 
 .connection-pill[data-connected="false"] {
-  border-color: #bccdc7;
-  background: #f4f8f6;
-  color: #4f6860;
+  border-color: #344f46;
+  background: rgba(22, 36, 31, 0.55);
+  color: #8ea89e;
 }
 
 h1 {
   margin: 6px 0;
-  font-size: 2rem;
-  color: #075e54;
+  font-size: 2.1rem;
+  color: #d8ffec;
 }
 
 .subhead {
   margin: 0;
   max-width: 70ch;
-  color: #1f584d;
+  color: #9dc2b5;
 }
 
 .refresh {
-  border: 1px solid #0b7d68;
-  background: #dff8eb;
-  color: #075e54;
+  border: 1px solid #2c715b;
+  background: rgba(20, 54, 44, 0.7);
+  color: #9aeec4;
   border-radius: 10px;
   padding: 9px 14px;
 }
 
 .connect-whatsapp {
-  border: 1px solid #128c7e;
-  background: #128c7e;
+  border: 1px solid #24c777;
+  background: linear-gradient(130deg, #179f63, #1dcf77);
   color: #fff;
   border-radius: 10px;
   padding: 9px 14px;
+  box-shadow: 0 8px 18px rgba(20, 160, 95, 0.3);
 }
 
 .error-banner {
   margin: 0 0 16px;
-  border: 1px solid #ce4257;
-  background: #ffeef0;
-  color: #7a1526;
+  border: 1px solid #7b3042;
+  background: rgba(72, 20, 34, 0.72);
+  color: #ffc5d2;
   border-radius: 10px;
   padding: 10px 12px;
 }
 
 .stats-grid {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .stats-grid article {
-  background: #ffffff;
-  border: 1px solid #c8ead9;
+  background: rgba(9, 18, 25, 0.88);
+  border: 1px solid #1d3d35;
   border-radius: 14px;
   padding: 14px;
 }
@@ -711,14 +800,17 @@ h1 {
 .stats-grid h2 {
   margin: 0;
   font-size: 2rem;
+  color: #7ef2b9;
 }
 
 .stats-grid p {
   margin: 6px 0 0;
-  color: #2f6a5e;
+  color: #86ab9d;
 }
 
 .workspace {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 14px;
@@ -727,10 +819,11 @@ h1 {
 
 .inbox-panel,
 .card {
-  background: #fff;
-  border: 1px solid #c8ead9;
+  background: rgba(9, 18, 25, 0.9);
+  border: 1px solid #1d3d35;
   border-radius: 14px;
   padding: 14px;
+  box-shadow: inset 0 1px 0 rgba(165, 232, 199, 0.05);
 }
 
 .toolbar-row {
@@ -750,10 +843,16 @@ input,
 textarea,
 select {
   width: 100%;
-  border: 1px solid #abd9c5;
+  border: 1px solid #2a5a4b;
   border-radius: 9px;
   padding: 8px 10px;
-  background: #f7fffb;
+  background: rgba(8, 16, 23, 0.9);
+  color: #e2fff1;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #7aa193;
 }
 
 .conversation-list {
@@ -767,16 +866,23 @@ select {
 }
 
 .conversation-list li {
-  border: 1px solid #c8ead9;
+  border: 1px solid #24473e;
   border-radius: 10px;
   padding: 10px;
   cursor: pointer;
-  background: #f8fffc;
+  background: rgba(10, 19, 27, 0.78);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.conversation-list li:hover {
+  border-color: #35a879;
+  transform: translateY(-1px);
 }
 
 .conversation-list li.active {
   border-color: #25d366;
-  background: #e7fff0;
+  background: rgba(19, 64, 48, 0.62);
+  box-shadow: 0 0 0 1px rgba(38, 211, 102, 0.2);
 }
 
 .line1 {
@@ -790,26 +896,26 @@ select {
   font-size: 0.75rem;
   border-radius: 999px;
   padding: 2px 8px;
-  border: 1px solid #97c8b6;
+  border: 1px solid #3f6a5b;
 }
 
 .pill[data-state="NEW"] {
-  background: #e6f9ee;
-  border-color: #58c791;
+  background: rgba(28, 132, 84, 0.26);
+  border-color: #49b97f;
 }
 
 .pill[data-state="FOLLOW_UP"] {
-  background: #ecfff2;
-  border-color: #43bd80;
+  background: rgba(69, 139, 88, 0.26);
+  border-color: #4bc189;
 }
 
 .pill[data-state="CLOSED"] {
-  background: #eef7f3;
-  border-color: #8eb8a9;
+  background: rgba(73, 99, 90, 0.34);
+  border-color: #5e7f73;
 }
 
 .dim {
-  color: #4a6b61;
+  color: #83a69a;
 }
 
 .conversation-list p,
@@ -824,6 +930,7 @@ select {
 
 h3 {
   margin-top: 0;
+  color: #bfffdc;
 }
 
 .meta-grid {
@@ -843,10 +950,10 @@ h3 {
 }
 
 .message {
-  border: 1px solid #c8ead9;
+  border: 1px solid #284b41;
   border-radius: 11px;
   padding: 10px;
-  background: #f7fffb;
+  background: rgba(8, 16, 23, 0.75);
 }
 
 .message.inbound {
@@ -886,16 +993,16 @@ h3 {
 
 .template-strip button,
 button {
-  border: 1px solid #9fd4be;
-  background: #f0fff7;
+  border: 1px solid #2a5d4d;
+  background: rgba(17, 34, 28, 0.72);
   border-radius: 8px;
   padding: 7px 11px;
-  color: #0c5f52;
+  color: #9feec6;
 }
 
 button.primary {
-  border-color: #128c7e;
-  background: #128c7e;
+  border-color: #1dbf72;
+  background: linear-gradient(130deg, #148f5a, #1ec877);
   color: white;
 }
 
@@ -908,9 +1015,10 @@ button.primary {
 }
 
 .notes-list article {
-  border: 1px solid #c8ead9;
+  border: 1px solid #23463c;
   border-radius: 10px;
   padding: 8px;
+  background: rgba(8, 16, 23, 0.72);
 }
 
 .inline-form {
@@ -920,6 +1028,8 @@ button.primary {
 }
 
 .grid-2 {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
@@ -944,9 +1054,10 @@ button.primary {
 }
 
 .template-list li {
-  border: 1px solid #c8ead9;
+  border: 1px solid #23463c;
   border-radius: 10px;
   padding: 8px;
+  background: rgba(8, 16, 23, 0.72);
 }
 
 .template-list p {
@@ -956,7 +1067,7 @@ button.primary {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 34, 28, 0.45);
+  background: rgba(4, 11, 16, 0.72);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -965,8 +1076,8 @@ button.primary {
 
 .modal-card {
   width: min(680px, 100%);
-  background: #fff;
-  border: 1px solid #bde3cf;
+  background: #0c1821;
+  border: 1px solid #245245;
   border-radius: 16px;
   padding: 18px;
 }
@@ -987,6 +1098,13 @@ button.primary {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 1020px) {
@@ -1014,6 +1132,12 @@ button.primary {
   .triple,
   .inline-form,
   .modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .stats-grid {
     grid-template-columns: 1fr;
   }
 }
