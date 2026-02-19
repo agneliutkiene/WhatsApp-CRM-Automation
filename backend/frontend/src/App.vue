@@ -637,6 +637,7 @@ onMounted(refreshDashboard);
   max-width: 1320px;
   margin: 0 auto;
   padding: 30px 20px 56px;
+  font-size: 0.95rem;
   color: #e7f7ef;
   min-height: 100vh;
   overflow: hidden;
@@ -676,13 +677,13 @@ onMounted(refreshDashboard);
   background: rgba(11, 20, 29, 0.84);
   border: 1px solid #1b3a33;
   border-radius: 16px;
-  padding: 14px 18px;
+  padding: 12px 16px;
   margin-bottom: 14px;
   backdrop-filter: blur(6px);
 }
 
 .brand {
-  font-size: 1.06rem;
+  font-size: 0.98rem;
   letter-spacing: 0.04em;
   font-weight: 700;
   color: #84f7c5;
@@ -697,7 +698,7 @@ onMounted(refreshDashboard);
 .top-nav a {
   text-decoration: none;
   color: #99c6b5;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   transition: color 0.2s ease;
 }
 
@@ -716,7 +717,7 @@ onMounted(refreshDashboard);
   background: rgba(11, 20, 29, 0.84);
   border: 1px solid #1b3a33;
   border-radius: 16px;
-  padding: 18px;
+  padding: 16px;
   backdrop-filter: blur(6px);
 }
 
@@ -729,8 +730,8 @@ onMounted(refreshDashboard);
 }
 
 .connection-pill {
-  font-size: 0.78rem;
-  padding: 5px 10px;
+  font-size: 0.72rem;
+  padding: 4px 9px;
   border-radius: 999px;
   border: 1px solid #296b56;
   background: rgba(25, 93, 66, 0.25);
@@ -745,13 +746,14 @@ onMounted(refreshDashboard);
 
 h1 {
   margin: 6px 0;
-  font-size: 2.1rem;
+  font-size: 1.85rem;
   color: #d8ffec;
 }
 
 .subhead {
   margin: 0;
   max-width: 70ch;
+  font-size: 0.92rem;
   color: #9dc2b5;
 }
 
@@ -760,7 +762,8 @@ h1 {
   background: rgba(20, 54, 44, 0.7);
   color: #9aeec4;
   border-radius: 10px;
-  padding: 9px 14px;
+  font-size: 0.86rem;
+  padding: 7px 11px;
 }
 
 .connect-whatsapp {
@@ -768,7 +771,8 @@ h1 {
   background: linear-gradient(130deg, #179f63, #1dcf77);
   color: #fff;
   border-radius: 10px;
-  padding: 9px 14px;
+  font-size: 0.86rem;
+  padding: 7px 11px;
   box-shadow: 0 8px 18px rgba(20, 160, 95, 0.3);
 }
 
@@ -799,7 +803,7 @@ h1 {
 
 .stats-grid h2 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.7rem;
   color: #7ef2b9;
 }
 
@@ -845,7 +849,8 @@ select {
   width: 100%;
   border: 1px solid #2a5a4b;
   border-radius: 9px;
-  padding: 8px 10px;
+  padding: 7px 9px;
+  font-size: 0.9rem;
   background: rgba(8, 16, 23, 0.9);
   color: #e2fff1;
 }
@@ -893,7 +898,7 @@ textarea::placeholder {
 }
 
 .pill {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   border-radius: 999px;
   padding: 2px 8px;
   border: 1px solid #3f6a5b;
@@ -930,6 +935,7 @@ textarea::placeholder {
 
 h3 {
   margin-top: 0;
+  font-size: 1.02rem;
   color: #bfffdc;
 }
 
@@ -996,7 +1002,8 @@ button {
   border: 1px solid #2a5d4d;
   background: rgba(17, 34, 28, 0.72);
   border-radius: 8px;
-  padding: 7px 11px;
+  padding: 6px 10px;
+  font-size: 0.86rem;
   color: #9feec6;
 }
 
@@ -1079,7 +1086,7 @@ button.primary {
   background: #0c1821;
   border: 1px solid #245245;
   border-radius: 16px;
-  padding: 18px;
+  padding: 16px;
 }
 
 .modal-grid {

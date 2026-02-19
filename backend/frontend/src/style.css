@@ -1,5 +1,6 @@
 :root {
   font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 15px;
   color: #e7f7ef;
   background: radial-gradient(circle at 15% 10%, #162d26 0%, #0a121a 48%, #070d13 100%);
   line-height: 1.45;
