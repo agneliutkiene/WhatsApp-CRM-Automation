@@ -54,6 +54,8 @@ const followUpDate = ref("");
 const followUpTime = ref("09:00");
 const showFollowUpCalendar = ref(false);
 const showFollowUpTimeDropdown = ref(false);
+const showAutomationStartDropdown = ref(false);
+const showAutomationEndDropdown = ref(false);
 const calendarMonth = ref(0);
 
 const templates = ref([]);
@@ -96,6 +98,13 @@ const canGoPreviousMonth = computed(() => calendarMonth.value > 0);
 const canGoNextMonth = computed(() => calendarMonth.value < 11);
 const followUpTimeOptions = computed(() =>
   Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`)
+);
+const automationTimeOptions = computed(() =>
+  Array.from({ length: 48 }, (_, slot) => {
+    const hour = String(Math.floor(slot / 2)).padStart(2, "0");
+    const minute = slot % 2 === 0 ? "00" : "30";
+    return `${hour}:${minute}`;
+  })
 );
 const calendarDays = computed(() => {
   const firstDay = new Date(FOLLOW_UP_YEAR, calendarMonth.value, 1).getDay();
@@ -184,6 +193,8 @@ const formatFollowUpDisplay = (dateValue, timeValue) => {
 
 const openFollowUpCalendar = () => {
   showFollowUpTimeDropdown.value = false;
+  showAutomationStartDropdown.value = false;
+  showAutomationEndDropdown.value = false;
   const selectedDate = followUpDate.value ? new Date(`${followUpDate.value}T00:00:00`) : null;
   if (selectedDate && selectedDate.getFullYear() === FOLLOW_UP_YEAR) {
     calendarMonth.value = selectedDate.getMonth();
@@ -199,6 +210,8 @@ const closeFollowUpCalendar = () => {
 
 const toggleFollowUpTimeDropdown = () => {
   showFollowUpCalendar.value = false;
+  showAutomationStartDropdown.value = false;
+  showAutomationEndDropdown.value = false;
   showFollowUpTimeDropdown.value = !showFollowUpTimeDropdown.value;
 };
 
@@ -206,9 +219,15 @@ const closeFollowUpTimeDropdown = () => {
   showFollowUpTimeDropdown.value = false;
 };
 
+const closeAutomationTimeDropdowns = () => {
+  showAutomationStartDropdown.value = false;
+  showAutomationEndDropdown.value = false;
+};
+
 const closeFollowUpPickers = () => {
   closeFollowUpCalendar();
   closeFollowUpTimeDropdown();
+  closeAutomationTimeDropdowns();
 };
 
 const goToPreviousMonth = () => {
@@ -256,6 +275,32 @@ const selectFollowUpTime = (timeOption) => {
 };
 
 const isSelectedFollowUpTime = (timeOption) => followUpTime.value === timeOption;
+const toggleAutomationStartDropdown = () => {
+  showFollowUpCalendar.value = false;
+  showFollowUpTimeDropdown.value = false;
+  showAutomationEndDropdown.value = false;
+  showAutomationStartDropdown.value = !showAutomationStartDropdown.value;
+};
+
+const toggleAutomationEndDropdown = () => {
+  showFollowUpCalendar.value = false;
+  showFollowUpTimeDropdown.value = false;
+  showAutomationStartDropdown.value = false;
+  showAutomationEndDropdown.value = !showAutomationEndDropdown.value;
+};
+
+const selectAutomationStartTime = (timeOption) => {
+  automation.businessHoursStart = timeOption;
+  showAutomationStartDropdown.value = false;
+};
+
+const selectAutomationEndTime = (timeOption) => {
+  automation.businessHoursEnd = timeOption;
+  showAutomationEndDropdown.value = false;
+};
+
+const isSelectedAutomationStartTime = (timeOption) => automation.businessHoursStart === timeOption;
+const isSelectedAutomationEndTime = (timeOption) => automation.businessHoursEnd === timeOption;
 const statusChipClass = (status) => {
   if (status === "SENT" || status === "RECEIVED") {
     return "ok";
@@ -744,11 +789,51 @@ onMounted(refreshDashboard);
           </label>
           <label>
             Start
-            <input v-model="automation.businessHoursStart" type="time" />
+            <div class="automation-time-field">
+              <button type="button" class="time-trigger" @click="toggleAutomationStartDropdown">
+                <span>{{ automation.businessHoursStart || "09:00" }}</span>
+                <span class="time-icons">
+                  <span class="clock-icon">🕒</span>
+                  <span class="time-arrow">⌄</span>
+                </span>
+              </button>
+              <div v-if="showAutomationStartDropdown" class="time-popover">
+                <button
+                  v-for="timeOption in automationTimeOptions"
+                  :key="`start-${timeOption}`"
+                  type="button"
+                  class="time-option"
+                  :class="{ selected: isSelectedAutomationStartTime(timeOption) }"
+                  @click="selectAutomationStartTime(timeOption)"
+                >
+                  {{ timeOption }}
+                </button>
+              </div>
+            </div>
           </label>
           <label>
             End
-            <input v-model="automation.businessHoursEnd" type="time" />
+            <div class="automation-time-field">
+              <button type="button" class="time-trigger" @click="toggleAutomationEndDropdown">
+                <span>{{ automation.businessHoursEnd || "19:00" }}</span>
+                <span class="time-icons">
+                  <span class="clock-icon">🕒</span>
+                  <span class="time-arrow">⌄</span>
+                </span>
+              </button>
+              <div v-if="showAutomationEndDropdown" class="time-popover">
+                <button
+                  v-for="timeOption in automationTimeOptions"
+                  :key="`end-${timeOption}`"
+                  type="button"
+                  class="time-option"
+                  :class="{ selected: isSelectedAutomationEndTime(timeOption) }"
+                  @click="selectAutomationEndTime(timeOption)"
+                >
+                  {{ timeOption }}
+                </button>
+              </div>
+            </div>
           </label>
         </div>
 
@@ -824,7 +909,11 @@ onMounted(refreshDashboard);
       </article>
     </section>
 
-    <div v-if="showFollowUpCalendar || showFollowUpTimeDropdown" class="calendar-overlay" @click="closeFollowUpPickers"></div>
+    <div
+      v-if="showFollowUpCalendar || showFollowUpTimeDropdown || showAutomationStartDropdown || showAutomationEndDropdown"
+      class="calendar-overlay"
+      @click="closeFollowUpPickers"
+    ></div>
 
     <div v-if="showWhatsAppModal" class="modal-backdrop" @click.self="closeWhatsAppModal">
       <section class="modal-card">
@@ -1210,6 +1299,10 @@ h3 {
   gap: 8px;
 }
 
+.automation-time-field {
+  position: relative;
+}
+
 .date-trigger {
   width: 100%;
   display: flex;
@@ -1360,6 +1453,11 @@ h3 {
   box-shadow: 0 14px 30px rgba(2, 9, 13, 0.45);
   display: grid;
   gap: 6px;
+}
+
+.automation-time-field .time-popover {
+  width: 100%;
+  max-height: 220px;
 }
 
 .time-option {
