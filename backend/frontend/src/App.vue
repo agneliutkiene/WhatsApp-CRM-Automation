@@ -250,6 +250,18 @@ const selectFollowUpTime = (timeOption) => {
 };
 
 const isSelectedFollowUpTime = (timeOption) => followUpTime.value === timeOption;
+const statusChipClass = (status) => {
+  if (status === "SENT" || status === "RECEIVED") {
+    return "ok";
+  }
+  if (status === "FAILED") {
+    return "error";
+  }
+  if (status === "PENDING") {
+    return "pending";
+  }
+  return "neutral";
+};
 
 const loadConversations = async () => {
   const data = await api.getConversations(buildConversationQuery());
@@ -639,7 +651,9 @@ onMounted(refreshDashboard);
                 <small>{{ formatDate(message.createdAt) }}</small>
               </header>
               <p>{{ message.text }}</p>
-              <small v-if="message.status">status: {{ message.status }}</small>
+              <small v-if="message.status" class="status-chip" :data-tone="statusChipClass(message.status)">
+                {{ message.status }}
+              </small>
             </article>
           </div>
 
@@ -683,11 +697,31 @@ onMounted(refreshDashboard);
     </section>
 
     <section class="grid-2" id="automation">
-      <article class="card">
+      <article class="card automation-card">
         <h3>Automation Settings</h3>
-        <label><input type="checkbox" v-model="automation.autoReplyOnFirstInquiry" /> Auto-reply on first inquiry</label>
-        <label><input type="checkbox" v-model="automation.businessHoursReplyEnabled" /> After-hours auto-reply</label>
-        <label><input type="checkbox" v-model="automation.followUpReminderEnabled" /> Follow-up reminders</label>
+        <div class="automation-toggle-list">
+          <label class="automation-toggle-row">
+            <input type="checkbox" v-model="automation.autoReplyOnFirstInquiry" />
+            <span>Auto-reply on first inquiry</span>
+            <span class="feature-label" :data-enabled="automation.autoReplyOnFirstInquiry">
+              {{ automation.autoReplyOnFirstInquiry ? "ON" : "OFF" }}
+            </span>
+          </label>
+          <label class="automation-toggle-row">
+            <input type="checkbox" v-model="automation.businessHoursReplyEnabled" />
+            <span>After-hours auto-reply</span>
+            <span class="feature-label" :data-enabled="automation.businessHoursReplyEnabled">
+              {{ automation.businessHoursReplyEnabled ? "ON" : "OFF" }}
+            </span>
+          </label>
+          <label class="automation-toggle-row">
+            <input type="checkbox" v-model="automation.followUpReminderEnabled" />
+            <span>Follow-up reminders</span>
+            <span class="feature-label" :data-enabled="automation.followUpReminderEnabled">
+              {{ automation.followUpReminderEnabled ? "ON" : "OFF" }}
+            </span>
+          </label>
+        </div>
 
         <div class="triple">
           <label>
@@ -754,7 +788,7 @@ onMounted(refreshDashboard);
     </section>
 
     <section class="grid-2" id="templates">
-      <article class="card">
+      <article class="card form-stack">
         <h3>Inbound Simulation (for demos)</h3>
         <div class="inline-form">
           <input v-model="simulatedInbound.name" placeholder="Contact name" />
@@ -764,7 +798,7 @@ onMounted(refreshDashboard);
         <button class="primary" @click="runInboundSimulation">Ingest inbound</button>
       </article>
 
-      <article class="card">
+      <article class="card form-stack">
         <h3>WordPress Lead -> WhatsApp CRM</h3>
         <div class="inline-form">
           <input v-model="wordpressLead.name" placeholder="Lead name" />
@@ -1026,24 +1060,37 @@ h1 {
 .inline-form select,
 .meta-grid select,
 .meta-grid input,
-input,
-textarea,
-select {
+input:not([type="checkbox"]),
+textarea {
   width: 100%;
   border: 1px solid #2a5a4b;
   border-radius: 9px;
   padding: 7px 9px;
-  padding-right: 34px;
   font-size: 0.9rem;
   background: rgba(8, 16, 23, 0.9);
+  color: #e2fff1;
+}
+
+textarea {
+  padding-right: 9px;
+}
+
+select {
+  width: 100%;
+  border: 1px solid #2a5a4b;
+  border-radius: 9px;
+  padding: 7px 11px;
+  padding-right: 38px;
+  font-size: 0.9rem;
+  background: rgba(8, 16, 23, 0.9);
+  color: #e2fff1;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239feec6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 11px center;
+  background-position: right 13px center;
   background-size: 14px 14px;
-  color: #e2fff1;
 }
 
 select::-ms-expand {
@@ -1130,6 +1177,7 @@ textarea::placeholder {
 
 h3 {
   margin-top: 0;
+  margin-bottom: 6px;
   font-size: 1.02rem;
   color: #bfffdc;
 }
@@ -1337,6 +1385,34 @@ h3 {
   margin: 8px 0 0;
 }
 
+.status-chip {
+  display: inline-block;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid #355d50;
+  color: #b7d4c8;
+}
+
+.status-chip[data-tone="ok"] {
+  border-color: #33aa73;
+  color: #d9ffee;
+  background: rgba(28, 143, 87, 0.26);
+}
+
+.status-chip[data-tone="pending"] {
+  border-color: #7d9f3f;
+  color: #ebf9d0;
+  background: rgba(122, 142, 45, 0.24);
+}
+
+.status-chip[data-tone="error"] {
+  border-color: #af4360;
+  color: #ffdbe5;
+  background: rgba(130, 42, 65, 0.32);
+}
+
 .composer {
   display: grid;
   gap: 8px;
@@ -1387,6 +1463,54 @@ button.primary {
   gap: 10px;
 }
 
+.form-stack {
+  display: grid;
+  gap: 11px;
+}
+
+.automation-card {
+  display: grid;
+  gap: 12px;
+}
+
+.automation-toggle-list {
+  display: grid;
+  gap: 9px;
+}
+
+.automation-toggle-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #23463c;
+  border-radius: 10px;
+  background: rgba(8, 16, 23, 0.6);
+}
+
+.automation-toggle-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #25d366;
+}
+
+.feature-label {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  border: 1px solid #4f7064;
+  color: #9ab8ad;
+}
+
+.feature-label[data-enabled="true"] {
+  border-color: #33aa73;
+  color: #d9ffee;
+  background: rgba(28, 143, 87, 0.26);
+}
+
 .template-manager-card .template-manager-form {
   display: grid;
   gap: 10px;
@@ -1405,8 +1529,8 @@ button.primary {
 .triple {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 8px 0;
+  gap: 10px;
+  margin: 10px 0;
 }
 
 .template-list {
