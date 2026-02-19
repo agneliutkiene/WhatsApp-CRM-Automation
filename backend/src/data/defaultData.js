@@ -89,6 +89,12 @@ export const defaultData = {
     }
   ],
   templates: defaultTemplates,
+  whatsappConfig: {
+    businessPhone: "",
+    phoneNumberId: "",
+    accessToken: "",
+    verifyToken: ""
+  },
   automation: {
     autoReplyOnFirstInquiry: true,
     firstInquiryTemplateId: "tpl_first_inquiry",

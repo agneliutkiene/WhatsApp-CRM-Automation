@@ -1,6 +1,10 @@
 import express from "express";
-import { env } from "../config/env.js";
 import { ingestWordPressLead, receiveInboundMessage } from "../services/crmService.js";
+import {
+  getPublicWhatsAppConfig,
+  getWhatsAppVerifyToken,
+  updateWhatsAppConfig
+} from "../services/whatsappService.js";
 
 export const integrationsRouter = express.Router();
 
@@ -24,12 +28,28 @@ integrationsRouter.post("/wordpress/lead", async (req, res) => {
   return res.status(201).json({ data });
 });
 
+integrationsRouter.get("/whatsapp/config", (req, res) => {
+  const data = getPublicWhatsAppConfig();
+  return res.json({ data });
+});
+
+integrationsRouter.patch("/whatsapp/config", (req, res) => {
+  const data = updateWhatsAppConfig({
+    businessPhone: req.body.businessPhone,
+    phoneNumberId: req.body.phoneNumberId,
+    accessToken: req.body.accessToken,
+    verifyToken: req.body.verifyToken
+  });
+  return res.json({ data });
+});
+
 integrationsRouter.get("/whatsapp/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
+  const verifyToken = getWhatsAppVerifyToken();
 
-  if (mode === "subscribe" && token === env.whatsappVerifyToken) {
+  if (mode === "subscribe" && token === verifyToken) {
     return res.status(200).send(challenge);
   }
 

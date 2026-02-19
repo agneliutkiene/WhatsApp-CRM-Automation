@@ -4,6 +4,16 @@ import { api } from "./api";
 
 const loading = ref(false);
 const error = ref("");
+const showWhatsAppModal = ref(false);
+const whatsappSaving = ref(false);
+const whatsappConnected = ref(false);
+
+const whatsappConfig = reactive({
+  businessPhone: "",
+  phoneNumberId: "",
+  accessToken: "",
+  verifyToken: ""
+});
 
 const analytics = ref({
   newInquiriesToday: 0,
@@ -61,6 +71,14 @@ const states = ["ALL", "NEW", "FOLLOW_UP", "CLOSED"];
 
 const selectedMessages = computed(() => selectedConversation.value?.messages || []);
 const selectedNotes = computed(() => selectedConversation.value?.notes || []);
+
+const applyWhatsAppConfig = (data = {}) => {
+  whatsappConfig.businessPhone = data.businessPhone || "";
+  whatsappConfig.phoneNumberId = data.phoneNumberId || "";
+  whatsappConfig.verifyToken = data.verifyToken || "";
+  whatsappConfig.accessToken = "";
+  whatsappConnected.value = Boolean(data.isConnected);
+};
 
 const buildConversationQuery = () => {
   const params = new URLSearchParams();
@@ -128,15 +146,17 @@ const refreshDashboard = async () => {
   error.value = "";
 
   try {
-    const [nextAnalytics, nextTemplates, nextAutomation] = await Promise.all([
+    const [nextAnalytics, nextTemplates, nextAutomation, nextWhatsAppConfig] = await Promise.all([
       api.getAnalytics(),
       api.getTemplates(),
-      api.getAutomation()
+      api.getAutomation(),
+      api.getWhatsAppConfig()
     ]);
 
     analytics.value = nextAnalytics;
     templates.value = nextTemplates;
     Object.assign(automation, nextAutomation || {});
+    applyWhatsAppConfig(nextWhatsAppConfig || {});
 
     await loadConversations();
     await loadSelectedConversation();
@@ -144,6 +164,46 @@ const refreshDashboard = async () => {
     error.value = err.message;
   } finally {
     loading.value = false;
+  }
+};
+
+const openWhatsAppModal = async () => {
+  try {
+    const data = await api.getWhatsAppConfig();
+    applyWhatsAppConfig(data || {});
+    showWhatsAppModal.value = true;
+  } catch (err) {
+    error.value = err.message;
+  }
+};
+
+const closeWhatsAppModal = () => {
+  showWhatsAppModal.value = false;
+  whatsappConfig.accessToken = "";
+};
+
+const saveWhatsAppConfig = async () => {
+  whatsappSaving.value = true;
+  error.value = "";
+
+  try {
+    const payload = {
+      businessPhone: whatsappConfig.businessPhone.trim(),
+      phoneNumberId: whatsappConfig.phoneNumberId.trim(),
+      verifyToken: whatsappConfig.verifyToken.trim()
+    };
+
+    if (whatsappConfig.accessToken.trim()) {
+      payload.accessToken = whatsappConfig.accessToken.trim();
+    }
+
+    const data = await api.updateWhatsAppConfig(payload);
+    applyWhatsAppConfig(data || {});
+    showWhatsAppModal.value = false;
+  } catch (err) {
+    error.value = err.message;
+  } finally {
+    whatsappSaving.value = false;
   }
 };
 
@@ -305,7 +365,13 @@ onMounted(refreshDashboard);
           Desktop control layer for WhatsApp Business: inbox, follow-ups, notes, automation, and daily analytics.
         </p>
       </div>
-      <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
+      <div class="hero-actions">
+        <span class="connection-pill" :data-connected="whatsappConnected">
+          {{ whatsappConnected ? "WhatsApp connected" : "WhatsApp not connected" }}
+        </span>
+        <button class="connect-whatsapp" @click="openWhatsAppModal">Connect your WhatsApp</button>
+        <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
+      </div>
     </header>
 
     <p v-if="error" class="error-banner">{{ error }}</p>
@@ -516,6 +582,40 @@ onMounted(refreshDashboard);
         <button class="primary" @click="submitWordPressLead">Push lead</button>
       </article>
     </section>
+
+    <div v-if="showWhatsAppModal" class="modal-backdrop" @click.self="closeWhatsAppModal">
+      <section class="modal-card">
+        <h3>Connect your WhatsApp</h3>
+        <p class="dim">
+          Add your WhatsApp Business API credentials. This enables real message sending from the dashboard.
+        </p>
+        <div class="modal-grid">
+          <label>
+            Business phone number
+            <input v-model="whatsappConfig.businessPhone" placeholder="+91..." />
+          </label>
+          <label>
+            Phone number ID
+            <input v-model="whatsappConfig.phoneNumberId" placeholder="Meta phone number ID" />
+          </label>
+          <label>
+            Access token
+            <input v-model="whatsappConfig.accessToken" type="password" placeholder="Meta access token" />
+          </label>
+          <label>
+            Webhook verify token
+            <input v-model="whatsappConfig.verifyToken" placeholder="Verify token used in Meta webhook setup" />
+          </label>
+        </div>
+        <p class="dim modal-note">Access token stays hidden. Leave it blank to keep the current token unchanged.</p>
+        <div class="modal-actions">
+          <button @click="closeWhatsAppModal">Cancel</button>
+          <button class="primary" @click="saveWhatsAppConfig" :disabled="whatsappSaving">
+            {{ whatsappSaving ? "Saving..." : "Save credentials" }}
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -534,6 +634,29 @@ onMounted(refreshDashboard);
   margin-bottom: 18px;
 }
 
+.hero-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.connection-pill {
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #9fd4be;
+  background: #f0fff7;
+  color: #0c5f52;
+}
+
+.connection-pill[data-connected="false"] {
+  border-color: #bccdc7;
+  background: #f4f8f6;
+  color: #4f6860;
+}
+
 h1 {
   margin: 6px 0;
   font-size: 2rem;
@@ -550,6 +673,14 @@ h1 {
   border: 1px solid #0b7d68;
   background: #dff8eb;
   color: #075e54;
+  border-radius: 10px;
+  padding: 9px 14px;
+}
+
+.connect-whatsapp {
+  border: 1px solid #128c7e;
+  background: #128c7e;
+  color: #fff;
   border-radius: 10px;
   padding: 9px 14px;
 }
@@ -822,7 +953,51 @@ button.primary {
   margin: 6px 0;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 34, 28, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.modal-card {
+  width: min(680px, 100%);
+  background: #fff;
+  border: 1px solid #bde3cf;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.modal-note {
+  margin: 10px 0 0;
+}
+
+.modal-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 @media (max-width: 1020px) {
+  .hero {
+    flex-direction: column;
+  }
+
+  .hero-actions {
+    justify-content: flex-start;
+  }
+
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -837,7 +1012,8 @@ button.primary {
 
   .meta-grid,
   .triple,
-  .inline-form {
+  .inline-form,
+  .modal-grid {
     grid-template-columns: 1fr;
   }
 }

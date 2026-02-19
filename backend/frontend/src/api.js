@@ -54,6 +54,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body)
     }),
+  getWhatsAppConfig: () => request("/integrations/whatsapp/config"),
+  updateWhatsAppConfig: (body) =>
+    request("/integrations/whatsapp/config", {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }),
   simulateInbound: (body) =>
     request("/conversations/ingest/inbound", {
       method: "POST",

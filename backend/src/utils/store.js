@@ -18,10 +18,47 @@ const ensureDataFile = () => {
   }
 };
 
+const ensureDbShape = (db) => {
+  let changed = false;
+
+  if (!db.whatsappConfig) {
+    db.whatsappConfig = {
+      businessPhone: "",
+      phoneNumberId: "",
+      accessToken: "",
+      verifyToken: ""
+    };
+    changed = true;
+  }
+
+  if (typeof db.whatsappConfig.businessPhone !== "string") {
+    db.whatsappConfig.businessPhone = "";
+    changed = true;
+  }
+  if (typeof db.whatsappConfig.phoneNumberId !== "string") {
+    db.whatsappConfig.phoneNumberId = "";
+    changed = true;
+  }
+  if (typeof db.whatsappConfig.accessToken !== "string") {
+    db.whatsappConfig.accessToken = "";
+    changed = true;
+  }
+  if (typeof db.whatsappConfig.verifyToken !== "string") {
+    db.whatsappConfig.verifyToken = "";
+    changed = true;
+  }
+
+  return { db, changed };
+};
+
 export const getDb = () => {
   ensureDataFile();
   const content = fs.readFileSync(dataFilePath, "utf8");
-  return JSON.parse(content);
+  const { db, changed } = ensureDbShape(JSON.parse(content));
+  if (changed) {
+    saveDb(db);
+  }
+  return db;
 };
 
 export const saveDb = (db) => {
