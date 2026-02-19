@@ -36,6 +36,7 @@ const authPasswordInput = ref(apiAuth.getPassword());
 const currentView = ref("main");
 const mainAppUrl = ref("/");
 const crmAppUrl = ref("?view=crm");
+const requestedConversationId = ref("");
 
 const whatsappConfig = reactive({
   businessPhone: "",
@@ -544,6 +545,7 @@ const initializeView = () => {
   currentView.value = url.searchParams.get("view") === "crm" ? "crm" : "main";
   mainAppUrl.value = `${url.origin}${url.pathname}`;
   crmAppUrl.value = `${url.origin}${url.pathname}?view=crm`;
+  requestedConversationId.value = url.searchParams.get("conversation") || "";
 };
 
 const openCrmWindow = () => {
@@ -911,6 +913,13 @@ const submitWordPressLead = async () => {
 };
 
 const openLeadFromCrm = async (conversationId) => {
+  if (isCrmView.value && typeof window !== "undefined") {
+    const inboxUrl = new URL(mainAppUrl.value, window.location.origin);
+    inboxUrl.searchParams.set("conversation", conversationId);
+    window.open(inboxUrl.toString(), "_blank", "noopener,noreferrer");
+    return;
+  }
+
   try {
     selectedConversationId.value = conversationId;
     highlightedConversationId.value = conversationId;
@@ -966,6 +975,19 @@ const initializeDashboard = async () => {
   }
 
   await refreshDashboard();
+
+  if (!isCrmView.value && requestedConversationId.value) {
+    selectedConversationId.value = requestedConversationId.value;
+    requestedConversationId.value = "";
+    await loadSelectedConversation();
+    scrollToSection("inbox");
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("conversation");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    }
+  }
 };
 
 onMounted(initializeDashboard);
@@ -2185,7 +2207,7 @@ h3 {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding-top: 38px;
+  padding-top: 24px;
 }
 
 .meta-save-btn {
