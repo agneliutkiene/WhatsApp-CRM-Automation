@@ -1,11 +1,11 @@
 # WhatsApp CRM & Automation App
 
-A full-stack starter for the WhatsApp business use case you described:
+A full-stack starter for the WhatsApp CRM & Automation:
 
 - `frontend`: Vue 3 + Vite web dashboard
 - `backend`: Node.js + Express API with safe automation logic
 
-This app is designed as a lightweight operational CRM, not a marketing broadcast tool.
+This app is designed as a lightweight operational CRM.
 
 ## What is included
 
