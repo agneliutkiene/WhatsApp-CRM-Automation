@@ -684,18 +684,20 @@ onMounted(refreshDashboard);
         <button class="primary" @click="saveAutomation">Save automation</button>
       </article>
 
-      <article class="card">
+      <article class="card template-manager-card">
         <h3>Template Manager</h3>
-        <div class="inline-form">
-          <input v-model="newTemplate.name" placeholder="Template name" />
-          <select v-model="newTemplate.category">
-            <option value="CUSTOM">CUSTOM</option>
-            <option value="AUTO_REPLY">AUTO_REPLY</option>
-            <option value="FOLLOW_UP">FOLLOW_UP</option>
-          </select>
+        <div class="template-manager-form">
+          <div class="inline-form">
+            <input v-model="newTemplate.name" placeholder="Template name" />
+            <select v-model="newTemplate.category">
+              <option value="CUSTOM">CUSTOM</option>
+              <option value="AUTO_REPLY">AUTO_REPLY</option>
+              <option value="FOLLOW_UP">FOLLOW_UP</option>
+            </select>
+          </div>
+          <textarea v-model="newTemplate.body" rows="3" placeholder="Template text"></textarea>
+          <button class="primary" @click="createTemplate">Create template</button>
         </div>
-        <textarea v-model="newTemplate.body" rows="3" placeholder="Template text"></textarea>
-        <button class="primary" @click="createTemplate">Create template</button>
 
         <ul class="template-list">
           <li v-for="template in templates" :key="template.id">
@@ -970,8 +972,8 @@ h1 {
 .toolbar-row {
   display: grid;
   grid-template-columns: 120px 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .toolbar-row input,
@@ -987,9 +989,21 @@ select {
   border: 1px solid #2a5a4b;
   border-radius: 9px;
   padding: 7px 9px;
+  padding-right: 34px;
   font-size: 0.9rem;
   background: rgba(8, 16, 23, 0.9);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239feec6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 14px 14px;
   color: #e2fff1;
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 input::placeholder,
@@ -1262,7 +1276,13 @@ button.primary {
 .inline-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
+}
+
+.template-manager-card .template-manager-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .grid-2 {
@@ -1284,9 +1304,9 @@ button.primary {
 .template-list {
   list-style: none;
   padding: 0;
-  margin: 10px 0 0;
+  margin: 0;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   max-height: 200px;
   overflow: auto;
 }
