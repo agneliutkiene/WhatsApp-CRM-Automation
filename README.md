@@ -120,6 +120,7 @@ Frontend default URL: `http://localhost:5173`
 - Persist `backend/src/data/db.json` in a durable path for production (or replace with PostgreSQL/MySQL).
 - Build frontend and serve static files behind the same domain or host separately.
 - If frontend is hosted separately, set `VITE_API_BASE_URL` to full backend URL.
+- Full step-by-step guide: `DEPLOYMENT.md`
 
 ## Production hardening recommended next
 
