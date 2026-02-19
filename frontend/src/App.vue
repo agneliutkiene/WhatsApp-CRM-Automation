@@ -588,13 +588,14 @@ onMounted(refreshDashboard);
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" id="top">
     <div class="bg-blob"></div>
     <div class="bg-ring"></div>
 
     <header class="topbar">
       <div class="brand">&lt;/&gt; WhatsAppCRM</div>
       <nav class="top-nav">
+        <a href="#top">Home</a>
         <a href="#inbox">Inbox</a>
         <a href="#automation">Automation</a>
         <a href="#templates">Templates</a>
@@ -1026,7 +1027,8 @@ onMounted(refreshDashboard);
 }
 
 .topbar {
-  position: relative;
+  position: sticky;
+  top: 10px;
   z-index: 1;
   display: flex;
   justify-content: space-between;
@@ -1186,6 +1188,12 @@ h1 {
   grid-template-columns: 320px 1fr;
   gap: 14px;
   margin-bottom: 14px;
+}
+
+#inbox,
+#automation,
+#templates {
+  scroll-margin-top: 92px;
 }
 
 .inbox-panel,
