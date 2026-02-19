@@ -300,7 +300,7 @@ onMounted(refreshDashboard);
   <div class="app-shell">
     <header class="hero">
       <div>
-        <h1>WhatsApp CRM & Safe Automation</h1>
+        <h1>WhatsApp CRM & Automation</h1>
         <p class="subhead">
           Desktop control layer for WhatsApp Business: inbox, follow-ups, notes, automation, and daily analytics.
         </p>
