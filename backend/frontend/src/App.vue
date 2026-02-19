@@ -21,6 +21,7 @@ const CALENDAR_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 const loading = ref(false);
 const error = ref("");
+const success = ref("");
 const showWhatsAppModal = ref(false);
 const whatsappSaving = ref(false);
 const whatsappConnected = ref(false);
@@ -47,6 +48,7 @@ const filters = reactive({
 const conversations = ref([]);
 const selectedConversationId = ref("");
 const selectedConversation = ref(null);
+const highlightedConversationId = ref("");
 
 const noteInput = ref("");
 const messageInput = ref("");
@@ -314,6 +316,20 @@ const statusChipClass = (status) => {
   return "neutral";
 };
 
+const showSuccess = (message) => {
+  success.value = message;
+  setTimeout(() => {
+    if (success.value === message) {
+      success.value = "";
+    }
+  }, 3200);
+};
+
+const jumpToInbox = () => {
+  const inboxSection = document.getElementById("inbox");
+  inboxSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 const loadConversations = async () => {
   const data = await api.getConversations(buildConversationQuery());
   conversations.value = data;
@@ -515,14 +531,36 @@ const submitWordPressLead = async () => {
   }
 
   try {
-    await api.pushWordPressLead({
+    const data = await api.pushWordPressLead({
       ...wordpressLead
     });
 
     wordpressLead.name = "";
     wordpressLead.phone = "";
     wordpressLead.message = "";
-    await refreshDashboard();
+
+    const insertedConversationId = data?.conversation?.id || "";
+
+    filters.state = "ALL";
+    filters.search = "";
+    analytics.value = await api.getAnalytics();
+    await loadConversations();
+
+    if (insertedConversationId) {
+      selectedConversationId.value = insertedConversationId;
+      highlightedConversationId.value = insertedConversationId;
+      setTimeout(() => {
+        if (highlightedConversationId.value === insertedConversationId) {
+          highlightedConversationId.value = "";
+        }
+      }, 3000);
+      await loadSelectedConversation();
+      jumpToInbox();
+      showSuccess("Lead added to CRM inbox and opened.");
+    } else {
+      await loadSelectedConversation();
+      showSuccess("Lead added to CRM inbox.");
+    }
   } catch (err) {
     error.value = err.message;
   }
@@ -582,6 +620,7 @@ onMounted(refreshDashboard);
     </header>
 
     <p v-if="error" class="error-banner">{{ error }}</p>
+    <p v-if="success" class="success-banner">{{ success }}</p>
 
     <section class="stats-grid">
       <article>
@@ -615,7 +654,7 @@ onMounted(refreshDashboard);
           <li
             v-for="item in conversations"
             :key="item.id"
-            :class="{ active: item.id === selectedConversationId }"
+            :class="{ active: item.id === selectedConversationId, inserted: item.id === highlightedConversationId }"
             @click="selectedConversationId = item.id"
           >
             <div class="line1">
@@ -906,6 +945,10 @@ onMounted(refreshDashboard);
         <textarea v-model="wordpressLead.message" rows="3" placeholder="Lead message"></textarea>
         <input v-model="wordpressLead.sourceUrl" placeholder="WordPress page URL" />
         <button class="primary" @click="submitWordPressLead">Push lead</button>
+        <p class="card-hint">
+          Leads appear in the CRM Inbox (left panel) as <strong>NEW</strong> conversations.
+          <button type="button" class="link-button" @click="jumpToInbox">Go to inbox</button>
+        </p>
       </article>
     </section>
 
@@ -1105,6 +1148,15 @@ h1 {
   padding: 10px 12px;
 }
 
+.success-banner {
+  margin: 0 0 16px;
+  border: 1px solid #2a7d56;
+  background: rgba(19, 92, 59, 0.42);
+  color: #d8ffec;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
 .stats-grid {
   position: relative;
   z-index: 1;
@@ -1233,6 +1285,10 @@ textarea::placeholder {
   border-color: #25d366;
   background: rgba(19, 64, 48, 0.62);
   box-shadow: 0 0 0 1px rgba(38, 211, 102, 0.2);
+}
+
+.conversation-list li.inserted {
+  animation: insertedPulse 1s ease-in-out 2;
 }
 
 .line1 {
@@ -1689,6 +1745,23 @@ button.primary {
   margin: 6px 0;
 }
 
+.card-hint {
+  margin: 0;
+  color: #8fb8aa;
+  font-size: 0.84rem;
+}
+
+.link-button {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: #8ef0bd;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+  font-size: 0.84rem;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1723,6 +1796,15 @@ button.primary {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+@keyframes insertedPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(38, 211, 102, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(38, 211, 102, 0);
+  }
 }
 
 @media (max-width: 1180px) {
