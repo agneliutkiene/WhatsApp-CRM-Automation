@@ -1048,7 +1048,7 @@ onMounted(initializeDashboard);
           <select v-model="filters.state">
             <option v-for="state in states" :key="state" :value="state">{{ state }}</option>
           </select>
-          <input v-model="filters.search" placeholder="Search by name, phone, or text" />
+          <input v-model="filters.search" placeholder="Search name, phone, or text" />
         </div>
         <div class="toolbar-subrow">
           <label class="toggle-inline">
@@ -1824,6 +1824,7 @@ h1 {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .setup-actions button {
@@ -1983,9 +1984,13 @@ h1 {
 
 .toolbar-row {
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 104px minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.toolbar-row input {
+  font-size: 0.84rem;
 }
 
 .toolbar-subrow {
@@ -2180,6 +2185,7 @@ h3 {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
+  padding-top: 38px;
 }
 
 .meta-save-btn {
@@ -2571,7 +2577,8 @@ button.primary:hover {
 }
 
 .feature-label {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.7rem;
@@ -2780,6 +2787,15 @@ button.primary:hover {
   .modal-grid,
   .setup-inline {
     grid-template-columns: 1fr;
+  }
+
+  .meta-action {
+    padding-top: 0;
+  }
+
+  .meta-save-btn {
+    width: 100%;
+    max-width: none;
   }
 
   .setup-grid {
