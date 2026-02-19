@@ -1,197 +1,110 @@
-# Deployment Guide (Hostinger)
+# Deployment Guide (Hostinger, Single Deploy)
 
-This guide deploys your WhatsApp CRM app from:
+This project is configured so one Node.js deployment can serve both:
 
-- Backend: `/Users/agneliutkiene/Documents/New project/backend` (Node.js + Express)
-- Frontend: `/Users/agneliutkiene/Documents/New project/frontend` (Vue + Vite)
+- API routes under `/api/*`
+- Vue frontend at `/`
 
-Recommended production setup:
+This is the best path when Hostinger locks your app root to `backend`.
 
-- `api.yourdomain.com` -> backend Node.js app
-- `yourdomain.com` -> frontend static site
+## 1) Required Hostinger settings
 
-## 1) Prerequisites
+In your Node.js deployment settings use:
 
-- GitHub repo is up to date: `https://github.com/agneliutkiene/WhatsApp-template`
-- Hostinger plan with:
-  - Managed Node.js Hosting (for backend)
-  - Website hosting/static files (for frontend)
-- Node.js version: `>= 18.17.0`
-- Optional (for real WhatsApp sending):
-  - Meta WhatsApp Cloud API access token
-  - Meta phone number ID
-  - Verify token you define
+- Framework preset: `Express`
+- Branch: `main`
+- Node version: `20.x`
+- Root directory: `backend`
+- Entry file: `src/index.js`
+- Package manager: `npm`
 
-## 2) Backend deployment (Node.js on Hostinger)
+## 2) Environment variables
 
-### 2.1 Create Node.js app in hPanel
-
-1. Open Hostinger hPanel.
-2. Create/select domain or subdomain for API (recommended `api.yourdomain.com`).
-3. Open **Node.js** section and create an app.
-4. Set startup file to:
-
-`backend/src/index.js`
-
-5. Set app root to the repository root where `backend/` exists.
-
-### 2.2 Install backend dependencies
-
-In Hostinger terminal/SSH for your app directory:
-
-```bash
-cd backend
-npm ci --omit=dev
-```
-
-### 2.3 Configure backend environment variables
-
-In Hostinger app environment settings, add:
+Add these variables:
 
 - `NODE_ENV=production`
-- `PORT` (if required by Hostinger; otherwise platform-managed)
-- `WHATSAPP_ACCESS_TOKEN=<your_meta_token>`
-- `WHATSAPP_PHONE_NUMBER_ID=<your_phone_number_id>`
-- `WHATSAPP_VERIFY_TOKEN=<your_custom_verify_token>`
 - `APP_TIMEZONE=Asia/Kolkata`
 - `BUSINESS_HOURS_START=09:00`
 - `BUSINESS_HOURS_END=19:00`
 
-Important:
+Optional (for real WhatsApp sending):
 
-- If you are not ready for real WhatsApp sending, leave token/phone ID empty.
-- The app will still run, and outbound sends will be mocked safely.
+- `WHATSAPP_ACCESS_TOKEN=...`
+- `WHATSAPP_PHONE_NUMBER_ID=...`
+- `WHATSAPP_VERIFY_TOKEN=...`
 
-### 2.4 Start/restart backend
+## 3) Deploy
 
-Start or restart the Node.js app from hPanel.
+Click Deploy/Finish.
 
-### 2.5 Verify backend is live
+What happens during install:
 
-Open:
+1. Hostinger installs backend dependencies.
+2. Backend `postinstall` runs.
+3. `postinstall` builds frontend from `../frontend`.
+4. Backend serves built frontend from `frontend/dist`.
 
-- `https://api.yourdomain.com/api/health`
+## 4) Verify
 
-Expected JSON contains `"status":"ok"`.
+Check both URLs:
 
-## 3) Frontend deployment (static site)
+- Health: `https://<your-temp-domain>/api/health`
+- App: `https://<your-temp-domain>/`
 
-### 3.1 Build frontend with production API URL
+Expected:
 
-On your local machine:
+- `/api/health` returns JSON with `status: ok`
+- `/` loads WhatsApp CRM UI
 
-```bash
-cd "/Users/agneliutkiene/Documents/New project/frontend"
-VITE_API_BASE_URL="https://api.yourdomain.com/api" npm run build
-```
+## 5) If deployment fails
 
-This creates:
+Open Hostinger build/runtime logs and check first error.
 
-- `frontend/dist/`
+Common fixes:
 
-### 3.2 Upload frontend build to Hostinger
+1. Node version must be `20.x`.
+2. Root directory must be `backend`.
+3. Entry file must be `src/index.js`.
+4. If npm install fails, redeploy after clearing cache.
 
-Upload contents of `frontend/dist/` to your website public directory (typically `public_html`).
+## 6) Updating app after Git push
 
-Rules:
+Every push to `main` can redeploy automatically (if auto-deploy enabled).
 
-- Upload the files inside `dist`, not the folder itself.
-- `index.html` should end up directly in `public_html`.
+Manual redeploy flow:
 
-### 3.3 Verify frontend
+1. Open deployment in Hostinger.
+2. Click Redeploy.
+3. Re-check `/api/health` and `/`.
 
-Open:
+## 7) WordPress lead webhook endpoint
 
-- `https://yourdomain.com`
+Use this URL in WordPress form automation:
 
-Dashboard should load and fetch data from `https://api.yourdomain.com/api`.
+- `POST https://<your-temp-domain>/api/integrations/wordpress/lead`
 
-## 4) WhatsApp webhook configuration (Meta)
-
-In Meta app/webhook settings:
-
-- Callback URL: `https://api.yourdomain.com/api/integrations/whatsapp/webhook`
-- Verify token: same value as `WHATSAPP_VERIFY_TOKEN`
-
-Subscribe to relevant WhatsApp message events.
-
-Quick check (GET verify endpoint) happens automatically when Meta validates webhook.
-
-## 5) WordPress form integration
-
-Send lead data from your WordPress form/plugin to:
-
-- `POST https://api.yourdomain.com/api/integrations/wordpress/lead`
-
-JSON body example:
+Body example:
 
 ```json
 {
   "name": "Ravi",
   "phone": "+919876543210",
   "message": "Need pricing for tutoring",
-  "sourceUrl": "https://yourdomain.com/contact"
+  "sourceUrl": "https://your-site.com/contact"
 }
 ```
 
-Required fields: `phone`, `message`.
+## 8) WhatsApp webhook endpoint (Meta)
 
-## 6) Post-deploy smoke test checklist
+In Meta developer console:
 
-1. Open frontend and confirm inbox renders.
-2. Open `https://api.yourdomain.com/api/health`.
-3. Use **Inbound Simulation** in UI; verify conversation appears.
-4. Set one conversation to `FOLLOW_UP` with a near-term follow-up time.
-5. Wait ~1 minute; verify reminder message appears.
-6. Create and use a template; verify message is logged.
-7. (If Meta credentials configured) verify real WhatsApp outbound delivery.
+- Callback URL: `https://<your-temp-domain>/api/integrations/whatsapp/webhook`
+- Verify token: same as `WHATSAPP_VERIFY_TOKEN`
 
-## 7) Updating after code changes
+## 9) Production note
 
-After new pushes to GitHub:
-
-### Backend
-
-```bash
-cd backend
-git pull origin main
-npm ci --omit=dev
-```
-
-Restart backend app in hPanel.
-
-### Frontend
-
-```bash
-cd "/Users/agneliutkiene/Documents/New project/frontend"
-VITE_API_BASE_URL="https://api.yourdomain.com/api" npm run build
-```
-
-Upload refreshed `frontend/dist/` to `public_html`.
-
-## 8) Data persistence warning
-
-Current MVP stores data in local JSON file:
+Current MVP stores CRM data in local JSON file:
 
 - `backend/src/data/db.json`
 
-For production reliability, migrate to PostgreSQL/MySQL soon.
-
-Until migration, ensure your hosting environment keeps app filesystem persistent across restarts/redeploys.
-
-## 9) Security hardening before scale
-
-- Add dashboard authentication (login + session/JWT).
-- Restrict CORS to your frontend domain.
-- Validate and sign webhook payloads.
-- Add rate limiting on public endpoints.
-- Store secrets only in Hostinger environment variables.
-
-## 10) Go-live checklist
-
-- Repo visibility set to Public in GitHub settings
-- Backend healthy on HTTPS
-- Frontend connected to backend API
-- WhatsApp webhook verified
-- WordPress leads reaching CRM
-- First real inbound/outbound message tested
+For scale/reliability, migrate to MySQL/PostgreSQL.

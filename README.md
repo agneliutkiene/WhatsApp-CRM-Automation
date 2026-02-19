@@ -115,12 +115,11 @@ Frontend default URL: `http://localhost:5173`
 
 ## Hostinger deployment notes
 
-- Deploy backend as Node.js app (Managed Node.js Hosting).
+- Deploy a single Node.js app with root `backend` and entry `src/index.js`.
+- Backend now builds frontend during `postinstall` and serves it at `/`.
+- API remains under `/api/*`.
 - Set environment variables from `backend/.env.example`.
-- Persist `backend/src/data/db.json` in a durable path for production (or replace with PostgreSQL/MySQL).
-- Build frontend and serve static files behind the same domain or host separately.
-- If frontend is hosted separately, set `VITE_API_BASE_URL` to full backend URL.
-- Full step-by-step guide: `DEPLOYMENT.md`
+- Full step-by-step guide: `DEPLOYMENT.md`.
 
 ## Production hardening recommended next
 
