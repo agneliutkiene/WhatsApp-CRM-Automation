@@ -144,6 +144,12 @@ Requirements:
 - GitHub CLI (`gh`) installed and authenticated
 - `git` installed
 
+Script guardrails:
+
+- Skips competitor-maintained repos (`vercel`, `netlify` owners)
+- Skips likely library/non-app repos (only targets app/template/starter-style repos)
+- Inserts badge under `## Deployment` (creates that section if missing) instead of top-of-README
+
 ## Notes for contributors
 
 - `frontend/` is the primary frontend source.
