@@ -127,6 +127,23 @@ Business-hour defaults:
 
 See `DEPLOYMENT.md` for Hostinger-specific steps.
 
+## Suggest button to other repos
+
+If you want to propose the same Deploy on Hostinger button to other repositories:
+
+```bash
+chmod +x scripts/propose-hostinger-button-prs.sh
+# dry run first
+./scripts/propose-hostinger-button-prs.sh scripts/target-repos.txt
+# execute PR creation
+DRY_RUN=0 ./scripts/propose-hostinger-button-prs.sh scripts/target-repos.txt
+```
+
+Requirements:
+
+- GitHub CLI (`gh`) installed and authenticated
+- `git` installed
+
 ## Notes for contributors
 
 - `frontend/` is the primary frontend source.
