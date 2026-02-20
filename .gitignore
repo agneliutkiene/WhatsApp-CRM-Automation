@@ -6,3 +6,4 @@ frontend/dist/
 backend/frontend/dist/
 backend/src/data/db.json
 npm-debug.log*
+coverage/

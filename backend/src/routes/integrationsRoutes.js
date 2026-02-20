@@ -1,4 +1,5 @@
 import express from "express";
+import { env } from "../config/env.js";
 import { ingestWordPressLead, receiveInboundMessage, sendSetupTestMessage } from "../services/crmService.js";
 import {
   getWhatsAppConnectionStatus,
@@ -8,6 +9,7 @@ import {
   getWhatsAppVerifyToken,
   updateWhatsAppConfig
 } from "../services/whatsappService.js";
+import { extractWhatsAppInboundTextMessages, verifyWhatsAppSignature } from "../utils/webhook.js";
 
 export const integrationsRouter = express.Router();
 
@@ -94,31 +96,27 @@ integrationsRouter.get("/whatsapp/webhook", (req, res) => {
 });
 
 integrationsRouter.post("/whatsapp/webhook", async (req, res) => {
-  const entries = req.body?.entry || [];
+  const signatureCheck = verifyWhatsAppSignature({
+    rawBody: req.rawBody,
+    signatureHeader: req.get("x-hub-signature-256"),
+    appSecret: env.whatsappAppSecret
+  });
 
-  for (const entry of entries) {
-    const changes = entry?.changes || [];
-    for (const change of changes) {
-      const value = change?.value || {};
-      const contacts = value?.contacts || [];
-      const messages = value?.messages || [];
+  if (!signatureCheck.ok) {
+    return res.status(401).json({
+      error: "Invalid webhook signature.",
+      reason: signatureCheck.reason
+    });
+  }
 
-      for (const message of messages) {
-        const contact = contacts.find((c) => c.wa_id === message.from) || {};
-        const text = message?.text?.body || "";
-
-        if (!text) {
-          continue;
-        }
-
-        await receiveInboundMessage({
-          phone: message.from,
-          name: contact?.profile?.name || "Unknown",
-          text,
-          source: "WHATSAPP_WEBHOOK"
-        });
-      }
-    }
+  const inboundMessages = extractWhatsAppInboundTextMessages(req.body);
+  for (const inbound of inboundMessages) {
+    await receiveInboundMessage({
+      phone: inbound.phone,
+      name: inbound.name,
+      text: inbound.text,
+      source: "WHATSAPP_WEBHOOK"
+    });
   }
 
   return res.status(200).json({ received: true });

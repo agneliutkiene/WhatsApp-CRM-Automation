@@ -1,141 +1,140 @@
-# WhatsApp CRM & Automation App
+# WhatsApp CRM & Automation
 
-A full-stack starter for the WhatsApp CRM & Automation:
+Lightweight WhatsApp operations layer for small businesses:
 
-- `frontend`: Vue 3 + Vite web dashboard
-- `backend`: Node.js + Express API with safe automation logic
+- Unified inbox with states (`NEW`, `FOLLOW_UP`, `CLOSED`)
+- Follow-up scheduling and reminder automation
+- Templates and safe reply automation
+- CRM lead board and lead ingestion endpoints
+- Single-domain deploy (API + frontend) for Hostinger Node.js hosting
 
-This app is designed as a lightweight operational CRM.
+## Repository health
 
-## What is included
+- CI: GitHub Actions runs build + backend checks on push/PR
+- License: MIT (`LICENSE`)
+- Contribution guide: `CONTRIBUTING.md`
 
-### Core inbox and CRM workflow
-- Unified conversation list with state: `NEW`, `FOLLOW_UP`, `CLOSED`
-- Conversation timeline (inbound/outbound messages)
-- Notes per conversation
-- Search and state filters
+## Tech stack
 
-### Follow-up system
-- Set follow-up datetime per conversation
-- Background worker checks due follow-ups every minute
-- Reminder messages can be sent automatically (safe mode)
+- Frontend: Vue 3 + Vite
+- Backend: Node.js + Express
+- Storage (MVP): local JSON (`backend/src/data/db.json`)
 
-### Safe automation
-- Auto-reply on first inquiry
-- After-hours reply template
-- Follow-up reminder template
-- Automation settings editable in dashboard
-- Validation and safety checks before saving automation rules
+## Quick start (local)
 
-### Guided onboarding and access protection
-- Setup checklist: connect credentials, verify webhook, send test message
-- Setup assistant modal with copy-ready webhook URL/token
-- Optional API password lock for public deployments (`APP_PASSWORD`)
-
-### Lightweight analytics
-- New inquiries today
-- Pending follow-ups
-- Closed conversations
-- Total conversations
-
-### Integrations
-- WordPress lead ingestion endpoint (structured lead -> conversation)
-- WhatsApp webhook endpoint (Meta Cloud API compatible structure)
-- WhatsApp message sending integration hook (uses Meta API when credentials are configured)
-
-## Project structure
-
-- `/Users/agneliutkiene/Documents/New project/frontend`
-- `/Users/agneliutkiene/Documents/New project/backend`
-
-## Local run
-
-### 1) Install dependencies
-
+1. Install dependencies:
 ```bash
-cd "/Users/agneliutkiene/Documents/New project/backend"
-npm install
-
-cd "/Users/agneliutkiene/Documents/New project/frontend"
-npm install
+npm run install:all
 ```
 
-### 2) Configure environment
-
+2. Create env files:
 ```bash
-cd "/Users/agneliutkiene/Documents/New project/backend"
-cp .env.example .env
-
-cd "/Users/agneliutkiene/Documents/New project/frontend"
-cp .env.example .env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
-### 3) Start backend
-
+3. Start backend:
 ```bash
-cd "/Users/agneliutkiene/Documents/New project/backend"
-npm run dev
+npm --prefix backend run dev
 ```
 
-Backend default URL: `http://localhost:3001`
-
-### 4) Start frontend
-
+4. Start frontend:
 ```bash
-cd "/Users/agneliutkiene/Documents/New project/frontend"
-npm run dev
+npm --prefix frontend run dev
 ```
 
-Frontend default URL: `http://localhost:5173`
+Default URLs:
+
+- Frontend: `http://localhost:5173`
+- Backend/API: `http://localhost:3001`
+
+## Scripts
+
+Root:
+
+- `npm run install:all` install backend + frontend deps
+- `npm run check` run backend checks + frontend build check
+- `npm run build` build frontend and backend-served frontend dist
+
+Backend:
+
+- `npm --prefix backend run dev`
+- `npm --prefix backend run start`
+- `npm --prefix backend run lint`
+- `npm --prefix backend run test`
+- `npm --prefix backend run check`
+- `npm --prefix backend run build:frontend`
+
+Frontend:
+
+- `npm --prefix frontend run dev`
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run build:backend-dist`
+- `npm --prefix frontend run check`
 
 ## API overview
 
-### Health
 - `GET /api/health`
-
-### Conversations
-- `GET /api/conversations?state=NEW&search=term`
+- `GET /api/conversations`
 - `GET /api/conversations/:id`
-- `PATCH /api/conversations/:id` (`state`, `followUpAt`)
+- `PATCH /api/conversations/:id`
 - `POST /api/conversations/:id/notes`
 - `POST /api/conversations/:id/messages`
-- `POST /api/conversations/ingest/inbound` (manual simulation)
+- `POST /api/conversations/ingest/inbound`
 - `GET /api/conversations/follow-ups/pending`
-
-### Templates
 - `GET /api/templates`
 - `POST /api/templates`
 - `PATCH /api/templates/:id`
-
-### Automation
 - `GET /api/automation`
 - `GET /api/automation/safety`
 - `PATCH /api/automation`
-
-### Analytics
 - `GET /api/analytics/today`
-
-### Integrations
 - `POST /api/integrations/wordpress/lead`
 - `GET /api/integrations/whatsapp/status`
+- `PATCH /api/integrations/whatsapp/config`
 - `POST /api/integrations/whatsapp/confirm-webhook`
 - `POST /api/integrations/whatsapp/test-message`
-- `GET /api/integrations/whatsapp/webhook` (verification)
+- `GET /api/integrations/whatsapp/webhook`
 - `POST /api/integrations/whatsapp/webhook`
 
-## Hostinger deployment notes
+## Environment variables (backend)
 
-- Deploy a single Node.js app with root `backend` and entry `src/index.js`.
-- Backend now builds frontend during `postinstall` and serves it at `/`.
-- API remains under `/api/*`.
-- Set environment variables from `backend/.env.example`.
-- Full step-by-step guide: `DEPLOYMENT.md`.
+Required for production:
 
-## Production hardening recommended next
+- `NODE_ENV=production`
+- `APP_BASE_URL=https://<your-domain>`
 
-- Auth + role-based access (owner/agent)
-- Real database (PostgreSQL/MySQL)
-- Retry queue for failed WhatsApp sends
-- Per-tenant isolation for hosted multi-instance rollout
-- Audit logs and webhook signature validation
-- Backup and restore tooling
+Recommended:
+
+- `APP_PASSWORD=<strong-password>`
+- `WHATSAPP_APP_SECRET=<meta-app-secret>` (enables webhook signature verification)
+
+Optional WhatsApp Cloud API:
+
+- `WHATSAPP_ACCESS_TOKEN=...`
+- `WHATSAPP_PHONE_NUMBER_ID=...`
+- `WHATSAPP_VERIFY_TOKEN=...`
+
+Business-hour defaults:
+
+- `APP_TIMEZONE=Asia/Kolkata`
+- `BUSINESS_HOURS_START=09:00`
+- `BUSINESS_HOURS_END=19:00`
+
+## Deployment
+
+See `DEPLOYMENT.md` for Hostinger-specific steps.
+
+## Notes for contributors
+
+- `frontend/` is the primary frontend source.
+- Backend deploy builds frontend into `backend/frontend/dist` via `build:frontend`.
+- Avoid editing generated `dist` artifacts.
+
+## Production hardening roadmap
+
+- Move from JSON storage to PostgreSQL/MySQL
+- Add role-based auth (owner/agent)
+- Add webhook replay protection/idempotency
+- Add retry queue for failed outbound sends
+- Add structured logging and audit trails

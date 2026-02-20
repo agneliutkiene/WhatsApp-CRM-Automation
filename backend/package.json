@@ -9,8 +9,11 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build:frontend": "npm --prefix ./frontend ci --include=dev && npm --prefix ./frontend run build",
-    "postinstall": "npm run build:frontend"
+    "lint": "find src test -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "test": "node --test",
+    "build:frontend": "npm --prefix ../frontend ci --include=dev && npm --prefix ../frontend run build:backend-dist",
+    "postinstall": "npm run build:frontend",
+    "check": "npm run lint && npm run test"
   },
   "dependencies": {
     "cors": "^2.8.5",

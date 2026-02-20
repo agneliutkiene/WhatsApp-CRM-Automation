@@ -33,6 +33,7 @@ Optional (for real WhatsApp sending):
 - `WHATSAPP_ACCESS_TOKEN=...`
 - `WHATSAPP_PHONE_NUMBER_ID=...`
 - `WHATSAPP_VERIFY_TOKEN=...`
+- `WHATSAPP_APP_SECRET=...` (recommended, enables webhook signature verification)
 
 Optional (recommended on public domains):
 
@@ -46,7 +47,7 @@ What happens during install:
 
 1. Hostinger installs backend dependencies.
 2. Backend `postinstall` runs.
-3. `postinstall` builds frontend from `./frontend`.
+3. `postinstall` builds frontend from repository `frontend/` source.
 4. Backend serves built frontend from `frontend/dist`.
 
 ## 4) Verify
@@ -106,11 +107,11 @@ In Meta developer console:
 - Callback URL: `https://<your-temp-domain>/api/integrations/whatsapp/webhook`
 - Verify token: same as `WHATSAPP_VERIFY_TOKEN`
 
-In the app UI, open **Setup checklist** and complete:
+In the app UI, complete the onboarding checklist:
 
-1. Connect credentials
-2. Confirm webhook step
-3. Send setup test message
+1. Connect WhatsApp API credentials
+2. Save automation rules
+3. Push a first lead into CRM
 
 ## 9) Production note
 

@@ -1070,7 +1070,7 @@ onMounted(initializeDashboard);
           <select v-model="filters.state">
             <option v-for="state in states" :key="state" :value="state">{{ state }}</option>
           </select>
-          <input v-model="filters.search" placeholder="Search name, phone, or text" />
+          <input v-model="filters.search" placeholder="Search name, phone" />
         </div>
         <div class="toolbar-subrow">
           <label class="toggle-inline">
