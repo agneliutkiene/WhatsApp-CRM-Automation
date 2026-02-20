@@ -1,7 +1,5 @@
 # WhatsApp CRM & Automation
 
-[![Deploy on Hostinger](https://assets.hostinger.com/vps/deploy.svg)](https://www.hostinger.com/web-apps-hosting)
-
 Lightweight WhatsApp operations layer for small businesses:
 
 - Unified inbox with states (`NEW`, `FOLLOW_UP`, `CLOSED`)
@@ -126,29 +124,6 @@ Business-hour defaults:
 ## Deployment
 
 See `DEPLOYMENT.md` for Hostinger-specific steps.
-
-## Suggest button to other repos
-
-If you want to propose the same Deploy on Hostinger button to other repositories:
-
-```bash
-chmod +x scripts/propose-hostinger-button-prs.sh
-# dry run first
-./scripts/propose-hostinger-button-prs.sh scripts/target-repos.txt
-# execute PR creation
-DRY_RUN=0 ./scripts/propose-hostinger-button-prs.sh scripts/target-repos.txt
-```
-
-Requirements:
-
-- GitHub CLI (`gh`) installed and authenticated
-- `git` installed
-
-Script guardrails:
-
-- Skips competitor-maintained repos (`vercel`, `netlify` owners)
-- Skips likely library/non-app repos (only targets app/template/starter-style repos)
-- Inserts badge under `## Deployment` (creates that section if missing) instead of top-of-README
 
 ## Notes for contributors
 
