@@ -33,7 +33,7 @@ fi
 
 DRY_RUN="${DRY_RUN:-1}"
 WORKDIR="${WORKDIR:-/tmp/hostinger-badge-prs}"
-BRANCH_NAME="chore/add-hostinger-deploy-button"
+BRANCH_NAME="${BRANCH_NAME:-chore/add-hostinger-deploy-button}"
 HOSTINGER_URL="https://www.hostinger.com/web-apps-hosting"
 BADGE='[![Deploy on Hostinger](https://assets.hostinger.com/vps/deploy.svg)](https://www.hostinger.com/web-apps-hosting)'
 REPORT_FILE="${REPORT_FILE:-$WORKDIR/report.tsv}"
