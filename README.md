@@ -1,5 +1,7 @@
 # WhatsApp CRM & Automation
 
+[![Deploy on Hostinger](https://assets.hostinger.com/vps/deploy.svg)](https://www.hostinger.com/web-apps-hosting)
+
 Lightweight WhatsApp operations layer for small businesses:
 
 - Unified inbox with states (`NEW`, `FOLLOW_UP`, `CLOSED`)
