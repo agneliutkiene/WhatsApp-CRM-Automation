@@ -14,7 +14,7 @@ const request = async (path, options = {}) => {
 
   if (!response.ok) {
     const error = new Error(payload.error || "Request failed");
-    if (response.status === 401) {
+    if (response.status === 401 && String(payload.error || "").toLowerCase().includes("authentication required")) {
       error.code = "AUTH_REQUIRED";
     }
     if (Array.isArray(payload.details)) {

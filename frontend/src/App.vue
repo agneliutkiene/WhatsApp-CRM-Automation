@@ -1972,6 +1972,7 @@ onMounted(initializeDashboard);
           <button type="button" class="modal-close-btn" @click="closeAuthModal" aria-label="Close login">×</button>
         </div>
         <p class="dim">Each account has its own WhatsApp credentials, inbox, templates, and automation settings.</p>
+        <p v-if="error" class="auth-inline-error">{{ error }}</p>
         <label v-if="authMode === 'register'">
           Full name
           <input v-model="authForm.name" placeholder="Your name" autocomplete="name" />
@@ -3229,6 +3230,16 @@ button.primary:hover {
 
 .modal-note {
   margin: 10px 0 0;
+}
+
+.auth-inline-error {
+  margin: 4px 0 10px;
+  border: 1px solid #7b3042;
+  background: rgba(72, 20, 34, 0.72);
+  color: #ffc5d2;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
 }
 
 .modal-title-row {

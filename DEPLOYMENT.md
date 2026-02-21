@@ -27,6 +27,7 @@ Add these variables:
 - `BUSINESS_HOURS_START=09:00`
 - `BUSINESS_HOURS_END=19:00`
 - `APP_BASE_URL=https://<your-temp-domain>`
+- `DATA_FILE_PATH=/home/<your-hostinger-user>/.whatsapp-crm/db.json`
 
 Optional (for real WhatsApp sending):
 

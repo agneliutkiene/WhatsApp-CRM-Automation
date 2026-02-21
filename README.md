@@ -85,6 +85,7 @@ Frontend:
 ## API overview
 
 - `GET /api/health`
+- `GET /api/auth/bootstrap`
 - `GET /api/auth/me`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
@@ -126,6 +127,7 @@ Optional (advanced):
 
 - `APP_PASSWORD=<strong-password>` (extra gate for non-session API traffic)
 - `AUTH_SESSION_DAYS=14`
+- `DATA_FILE_PATH=/absolute/path/to/db.json` (recommended for durable storage in production)
 
 Optional WhatsApp Cloud API:
 

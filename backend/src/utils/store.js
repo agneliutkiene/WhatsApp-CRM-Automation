@@ -5,7 +5,24 @@ import { createWorkspaceSeed, defaultData } from "../data/defaultData.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dataFilePath = path.resolve(__dirname, "../data/db.json");
+
+const resolveDataFilePath = () => {
+  const explicit = String(process.env.DATA_FILE_PATH || "").trim();
+  if (explicit) {
+    return path.isAbsolute(explicit) ? explicit : path.resolve(process.cwd(), explicit);
+  }
+
+  if (String(process.env.NODE_ENV || "").toLowerCase() === "production") {
+    const homeDir = String(process.env.HOME || "").trim();
+    if (homeDir) {
+      return path.resolve(homeDir, ".whatsapp-crm", "db.json");
+    }
+  }
+
+  return path.resolve(__dirname, "../data/db.json");
+};
+
+const dataFilePath = resolveDataFilePath();
 
 const LEGACY_WORKSPACE_KEY = "__legacy";
 
