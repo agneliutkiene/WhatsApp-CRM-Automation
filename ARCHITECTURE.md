@@ -1,44 +1,79 @@
 # Architecture
 
-## High-level flow
+## System overview
 
-1. Inbound events arrive via:
-   - WhatsApp webhook: `/api/integrations/whatsapp/webhook`
-   - Website leads: `/api/integrations/wordpress/lead`
-2. Backend normalizes payloads into conversations/messages.
-3. Automation rules optionally send safe responses.
-4. Frontend consumes `/api/*` and renders Inbox/Conversation/Automation/CRM views.
+Single deploy model:
+- Backend serves REST API under `/api/*`
+- Backend also serves built Vue frontend under `/`
 
-## Backend modules
+## Request/data flow
 
-- `src/routes/*`: HTTP boundary and request validation.
-- `src/services/crmService.js`: CRM workflows, conversation/message state changes.
-- `src/services/whatsappService.js`: WhatsApp config + provider send API.
-- `src/services/automationWorker.js`: periodic follow-up reminder processor.
-- `src/utils/store.js`: persistence layer (JSON file in MVP).
+1. User interacts with dashboard UI.
+2. Frontend calls backend API (`frontend/src/api.js`).
+3. Backend resolves authenticated user from session cookie.
+4. Services run workspace-scoped logic.
+5. Data is persisted to JSON store (MVP).
+6. Optional worker sends follow-up reminders on interval.
 
-## Frontend modules
+## Backend components
 
-- `frontend/src/App.vue`: main dashboard shell and UI state.
-- `frontend/src/api.js`: API client and app-password header logic.
+- `backend/src/index.js`: app bootstrap, middleware, route mounting
+- `backend/src/middleware/sessionAuth.js`: session attach + auth guard
+- `backend/src/middleware/apiAuth.js`: optional extra `APP_PASSWORD` gate
+- `backend/src/routes/`: HTTP route layer
+- `backend/src/services/authService.js`: registration, login, sessions
+- `backend/src/services/crmService.js`: conversations, templates, automation, analytics
+- `backend/src/services/whatsappService.js`: config, connection status, Meta send API
+- `backend/src/services/automationWorker.js`: periodic follow-up sender
+- `backend/src/utils/store.js`: JSON persistence and workspace hydration
 
-## Persistence
+## Frontend components
 
-Current MVP stores data in `backend/src/data/db.json`.
+- `frontend/src/App.vue`: main application UI and state orchestration
+- `frontend/src/api.js`: fetch wrapper and endpoint client
+- `frontend/src/style.css`: global styles
 
-Planned upgrade path:
+## Multi-user isolation
 
-1. Introduce repository layer abstraction.
-2. Implement SQL-backed repository (PostgreSQL/MySQL).
-3. Keep JSON repository for local demo mode.
+- Each account has its own workspace record.
+- Workspace includes:
+  - conversations
+  - messages
+  - templates
+  - automation settings
+  - WhatsApp connection settings
+- API operations always scope to `req.userId`.
+
+## WhatsApp connection capabilities
+
+- Required for "connected" state:
+  - `businessPhone`
+- Required for live outbound delivery:
+  - `phoneNumberId`
+  - `accessToken`
+- Required for Meta webhook verification handshake:
+  - `verifyToken`
+
+Without live delivery credentials, the app still works in CRM-only mode.
+
+## Persistence strategy
+
+Current:
+- JSON file storage via `backend/src/utils/store.js`
+- Production path can be forced using `DATA_FILE_PATH`
+
+Planned:
+- Move to PostgreSQL/MySQL repository layer
+- Keep JSON mode for local/demo
 
 ## Security controls
 
-- Optional app-level API password (`APP_PASSWORD`).
-- WhatsApp webhook verification token check.
-- Signature verification for webhook POST when `WHATSAPP_APP_SECRET` is configured.
+- HTTP-only auth cookies (session auth)
+- Optional extra API password gate (`APP_PASSWORD`)
+- Webhook verification token check
+- Signature verification for webhook POST when `WHATSAPP_APP_SECRET` is set
 
-## Known scaling limits
+## Known limits
 
-- Local JSON storage is not safe for horizontal scaling.
-- In-process scheduler (`setInterval`) can duplicate sends across multiple instances.
+- JSON storage is not suitable for high concurrency.
+- Single-process worker can duplicate sends if multiple instances run.

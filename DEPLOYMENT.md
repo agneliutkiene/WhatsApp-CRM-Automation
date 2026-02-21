@@ -111,13 +111,16 @@ In Meta developer console:
 In the app UI, complete the onboarding checklist:
 
 1. Connect WhatsApp API credentials
-2. Save automation rules
-3. Push a first lead into CRM
+2. Test WhatsApp connection
+3. Save automation rules
+4. Push a first lead into CRM
 
 ## 9) Production note
 
-Current MVP stores CRM data in local JSON file:
+Current MVP stores CRM data in JSON file.
 
-- `backend/src/data/db.json`
+For production durability, always set:
+
+- `DATA_FILE_PATH=/home/<your-hostinger-user>/.whatsapp-crm/db.json`
 
 For scale/reliability, migrate to MySQL/PostgreSQL.
