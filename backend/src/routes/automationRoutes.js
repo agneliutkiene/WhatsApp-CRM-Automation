@@ -4,18 +4,21 @@ import { getAutomationConfig, getAutomationSafetySnapshot, updateAutomationConfi
 export const automationRouter = express.Router();
 
 automationRouter.get("/", (req, res) => {
-  const data = getAutomationConfig();
+  const data = getAutomationConfig(req.userId);
   res.json({ data });
 });
 
 automationRouter.get("/safety", (req, res) => {
-  const data = getAutomationSafetySnapshot();
+  const data = getAutomationSafetySnapshot(req.userId);
   res.json({ data });
 });
 
 automationRouter.patch("/", (req, res) => {
   try {
-    const data = updateAutomationConfig(req.body || {});
+    const data = updateAutomationConfig({
+      userId: req.userId,
+      nextConfig: req.body || {}
+    });
     return res.json({ data });
   } catch (error) {
     return res.status(error.statusCode || 400).json({

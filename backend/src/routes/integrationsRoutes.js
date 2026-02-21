@@ -1,17 +1,41 @@
 import express from "express";
 import { env } from "../config/env.js";
+import { requireAuthenticatedUser } from "../middleware/sessionAuth.js";
 import { ingestWordPressLead, receiveInboundMessage, sendSetupTestMessage } from "../services/crmService.js";
 import {
+  findUserIdByPhoneNumberId,
+  findUserIdByVerifyToken,
   getWhatsAppConnectionStatus,
   markWebhookConfirmed,
   markWhatsAppTestSent,
   getPublicWhatsAppConfig,
-  getWhatsAppVerifyToken,
   updateWhatsAppConfig
 } from "../services/whatsappService.js";
 import { extractWhatsAppInboundTextMessages, verifyWhatsAppSignature } from "../utils/webhook.js";
 
 export const integrationsRouter = express.Router();
+
+const isWebhookPath = (path) => path.startsWith("/whatsapp/webhook");
+integrationsRouter.use((req, res, next) => {
+  if (isWebhookPath(req.path)) {
+    return next();
+  }
+  return requireAuthenticatedUser(req, res, next);
+});
+
+const getWebhookPhoneNumberId = (payload) => {
+  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const phoneNumberId = String(change?.value?.metadata?.phone_number_id || "").trim();
+      if (phoneNumberId) {
+        return phoneNumberId;
+      }
+    }
+  }
+  return "";
+};
 
 integrationsRouter.post("/wordpress/lead", async (req, res) => {
   const name = String(req.body.name || "Unknown").trim();
@@ -24,6 +48,7 @@ integrationsRouter.post("/wordpress/lead", async (req, res) => {
   }
 
   const data = await ingestWordPressLead({
+    userId: req.userId,
     name,
     phone,
     message,
@@ -34,7 +59,7 @@ integrationsRouter.post("/wordpress/lead", async (req, res) => {
 });
 
 integrationsRouter.get("/whatsapp/config", (req, res) => {
-  const data = getPublicWhatsAppConfig();
+  const data = getPublicWhatsAppConfig(req.userId);
   return res.json({ data });
 });
 
@@ -44,12 +69,13 @@ integrationsRouter.get("/whatsapp/status", (req, res) => {
     .trim();
   const host = req.get("host");
   const requestBaseUrl = host ? `${proto}://${host}` : "";
-  const data = getWhatsAppConnectionStatus({ requestBaseUrl });
+  const data = getWhatsAppConnectionStatus({ userId: req.userId, requestBaseUrl });
   return res.json({ data });
 });
 
 integrationsRouter.patch("/whatsapp/config", (req, res) => {
   const data = updateWhatsAppConfig({
+    userId: req.userId,
     businessPhone: req.body.businessPhone,
     phoneNumberId: req.body.phoneNumberId,
     accessToken: req.body.accessToken,
@@ -59,7 +85,7 @@ integrationsRouter.patch("/whatsapp/config", (req, res) => {
 });
 
 integrationsRouter.post("/whatsapp/confirm-webhook", (req, res) => {
-  const data = markWebhookConfirmed();
+  const data = markWebhookConfirmed(req.userId);
   return res.json({ data });
 });
 
@@ -72,12 +98,13 @@ integrationsRouter.post("/whatsapp/test-message", async (req, res) => {
   }
 
   const data = await sendSetupTestMessage({
+    userId: req.userId,
     phone,
     text
   });
 
   if (data?.message?.status !== "FAILED") {
-    markWhatsAppTestSent();
+    markWhatsAppTestSent(req.userId);
   }
   return res.status(201).json({ data });
 });
@@ -86,9 +113,8 @@ integrationsRouter.get("/whatsapp/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
-  const verifyToken = getWhatsAppVerifyToken();
-
-  if (mode === "subscribe" && token === verifyToken) {
+  const userId = findUserIdByVerifyToken(token);
+  if (mode === "subscribe" && userId) {
     return res.status(200).send(challenge);
   }
 
@@ -110,8 +136,16 @@ integrationsRouter.post("/whatsapp/webhook", async (req, res) => {
   }
 
   const inboundMessages = extractWhatsAppInboundTextMessages(req.body);
+  const phoneNumberId = getWebhookPhoneNumberId(req.body);
+  const userId = findUserIdByPhoneNumberId(phoneNumberId);
+
+  if (!userId) {
+    return res.status(202).json({ received: true, ignored: true, reason: "workspace-not-found" });
+  }
+
   for (const inbound of inboundMessages) {
     await receiveInboundMessage({
+      userId,
       phone: inbound.phone,
       name: inbound.name,
       text: inbound.text,

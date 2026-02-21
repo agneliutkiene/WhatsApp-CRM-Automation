@@ -8,6 +8,7 @@ Lightweight WhatsApp operations layer for small businesses:
 - Follow-up scheduling and reminder automation
 - Templates and safe reply automation
 - CRM lead board and lead ingestion endpoints
+- Built-in account login with isolated per-user workspaces
 - Single-domain deploy (API + frontend) for Hostinger Node.js hosting
 
 ## Repository health
@@ -50,6 +51,13 @@ Default URLs:
 - Frontend: `http://localhost:5173`
 - Backend/API: `http://localhost:3001`
 
+## Authentication and workspace isolation
+
+- Every user must sign up/login before accessing the dashboard.
+- Each account has an isolated workspace (conversations, templates, automation, WhatsApp config).
+- Session auth uses secure HTTP-only cookies (`SameSite=Lax`).
+- Logout clears the session cookie.
+
 ## Scripts
 
 Root:
@@ -77,6 +85,10 @@ Frontend:
 ## API overview
 
 - `GET /api/health`
+- `GET /api/auth/me`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
 - `GET /api/conversations`
 - `GET /api/conversations/:id`
 - `PATCH /api/conversations/:id`
@@ -108,8 +120,12 @@ Required for production:
 
 Recommended:
 
-- `APP_PASSWORD=<strong-password>`
 - `WHATSAPP_APP_SECRET=<meta-app-secret>` (enables webhook signature verification)
+
+Optional (advanced):
+
+- `APP_PASSWORD=<strong-password>` (extra gate for non-session API traffic)
+- `AUTH_SESSION_DAYS=14`
 
 Optional WhatsApp Cloud API:
 

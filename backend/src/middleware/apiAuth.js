@@ -5,6 +5,10 @@ const isExcludedPath = (path = "") => {
     return true;
   }
 
+  if (path.startsWith("/auth")) {
+    return true;
+  }
+
   if (path.startsWith("/integrations/whatsapp/webhook")) {
     return true;
   }
@@ -14,6 +18,10 @@ const isExcludedPath = (path = "") => {
 
 export const requireApiAuth = (req, res, next) => {
   if (!env.appPassword) {
+    return next();
+  }
+
+  if (req.userId) {
     return next();
   }
 

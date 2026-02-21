@@ -5,11 +5,13 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { env } from "./config/env.js";
 import { requireApiAuth } from "./middleware/apiAuth.js";
+import { attachSessionUser, requireAuthenticatedUser } from "./middleware/sessionAuth.js";
 import { conversationsRouter } from "./routes/conversationsRoutes.js";
 import { templatesRouter } from "./routes/templatesRoutes.js";
 import { automationRouter } from "./routes/automationRoutes.js";
 import { analyticsRouter } from "./routes/analyticsRoutes.js";
 import { integrationsRouter } from "./routes/integrationsRoutes.js";
+import { authRouter } from "./routes/authRoutes.js";
 import { getDataFilePath } from "./utils/store.js";
 import { startAutomationWorker } from "./services/automationWorker.js";
 
@@ -21,7 +23,12 @@ const hasBuiltFrontend = () => fs.existsSync(frontendIndexPath);
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true
+  })
+);
 app.use(
   express.json({
     limit: "1mb",
@@ -36,16 +43,18 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     dataFile: getDataFilePath(),
     environment: env.nodeEnv,
-    authRequired: Boolean(env.appPassword)
+    authRequired: true
   });
 });
 
+app.use("/api", attachSessionUser);
 app.use("/api", requireApiAuth);
 
-app.use("/api/conversations", conversationsRouter);
-app.use("/api/templates", templatesRouter);
-app.use("/api/automation", automationRouter);
-app.use("/api/analytics", analyticsRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/conversations", requireAuthenticatedUser, conversationsRouter);
+app.use("/api/templates", requireAuthenticatedUser, templatesRouter);
+app.use("/api/automation", requireAuthenticatedUser, automationRouter);
+app.use("/api/analytics", requireAuthenticatedUser, analyticsRouter);
 app.use("/api/integrations", integrationsRouter);
 
 app.use("/api", (req, res) => {

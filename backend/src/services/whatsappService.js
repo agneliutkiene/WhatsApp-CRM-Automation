@@ -1,14 +1,21 @@
 import { env } from "../config/env.js";
-import { getDb, saveDb } from "../utils/store.js";
+import {
+  findWorkspaceByPhoneNumberId,
+  findWorkspaceByVerifyToken,
+  getDb,
+  getOrCreateWorkspace,
+  saveDb
+} from "../utils/store.js";
 import { nowIso } from "../utils/time.js";
 
-const getStoredWhatsAppConfig = () => {
-  const db = getDb();
-  return db.whatsappConfig || {};
+const getStoredWhatsAppConfig = (db, userId) => {
+  const workspace = getOrCreateWorkspace(db, userId);
+  return workspace.whatsappConfig || {};
 };
 
-export const getEffectiveWhatsAppConfig = () => {
-  const stored = getStoredWhatsAppConfig();
+export const getEffectiveWhatsAppConfig = (userId) => {
+  const db = getDb();
+  const stored = getStoredWhatsAppConfig(db, userId);
 
   return {
     businessPhone: stored.businessPhone || "",
@@ -18,9 +25,10 @@ export const getEffectiveWhatsAppConfig = () => {
   };
 };
 
-export const getPublicWhatsAppConfig = () => {
-  const effective = getEffectiveWhatsAppConfig();
-  const stored = getStoredWhatsAppConfig();
+export const getPublicWhatsAppConfig = (userId) => {
+  const effective = getEffectiveWhatsAppConfig(userId);
+  const db = getDb();
+  const stored = getStoredWhatsAppConfig(db, userId);
   return {
     businessPhone: effective.businessPhone,
     phoneNumberId: effective.phoneNumberId,
@@ -32,11 +40,12 @@ export const getPublicWhatsAppConfig = () => {
   };
 };
 
-export const updateWhatsAppConfig = (nextConfig = {}) => {
+export const updateWhatsAppConfig = ({ userId, ...nextConfig } = {}) => {
   const db = getDb();
-  const current = db.whatsappConfig || {};
+  const workspace = getOrCreateWorkspace(db, userId);
+  const current = workspace.whatsappConfig || {};
 
-  db.whatsappConfig = {
+  workspace.whatsappConfig = {
     businessPhone: String(nextConfig.businessPhone ?? current.businessPhone ?? "").trim(),
     phoneNumberId: String(nextConfig.phoneNumberId ?? current.phoneNumberId ?? "").trim(),
     accessToken: String(nextConfig.accessToken ?? current.accessToken ?? "").trim(),
@@ -46,32 +55,37 @@ export const updateWhatsAppConfig = (nextConfig = {}) => {
   };
 
   saveDb(db);
-  return getPublicWhatsAppConfig();
+  return getPublicWhatsAppConfig(userId);
 };
 
-export const markWebhookConfirmed = () => {
+export const markWebhookConfirmed = (userId) => {
   const db = getDb();
-  db.whatsappConfig = {
-    ...(db.whatsappConfig || {}),
+  const workspace = getOrCreateWorkspace(db, userId);
+  workspace.whatsappConfig = {
+    ...(workspace.whatsappConfig || {}),
     webhookConfirmedAt: nowIso()
   };
   saveDb(db);
-  return getPublicWhatsAppConfig();
+  return getPublicWhatsAppConfig(userId);
 };
 
-export const markWhatsAppTestSent = () => {
+export const markWhatsAppTestSent = (userId) => {
   const db = getDb();
-  db.whatsappConfig = {
-    ...(db.whatsappConfig || {}),
+  const workspace = getOrCreateWorkspace(db, userId);
+  workspace.whatsappConfig = {
+    ...(workspace.whatsappConfig || {}),
     lastTestSentAt: nowIso()
   };
   saveDb(db);
-  return getPublicWhatsAppConfig();
+  return getPublicWhatsAppConfig(userId);
 };
 
-export const getWhatsAppConnectionStatus = ({ requestBaseUrl = "" } = {}) => {
-  const config = getPublicWhatsAppConfig();
-  const webhookUrl = `${requestBaseUrl || env.appBaseUrl || ""}/api/integrations/whatsapp/webhook`.replace(/([^:]\/)\/+/g, "$1");
+export const getWhatsAppConnectionStatus = ({ userId, requestBaseUrl = "" } = {}) => {
+  const config = getPublicWhatsAppConfig(userId);
+  const webhookUrl = `${requestBaseUrl || env.appBaseUrl || ""}/api/integrations/whatsapp/webhook`.replace(
+    /([^:]\/)\/+/g,
+    "$1"
+  );
   const connected = Boolean(config.isConnected);
   const hasVerifyToken = Boolean(config.verifyToken);
   const webhookConfirmed = Boolean(config.webhookConfirmedAt);
@@ -90,15 +104,25 @@ export const getWhatsAppConnectionStatus = ({ requestBaseUrl = "" } = {}) => {
   };
 };
 
-export const hasWhatsAppCredentials = () => {
-  const config = getEffectiveWhatsAppConfig();
+export const hasWhatsAppCredentials = (userId) => {
+  const config = getEffectiveWhatsAppConfig(userId);
   return Boolean(config.accessToken && config.phoneNumberId);
 };
 
-export const getWhatsAppVerifyToken = () => getEffectiveWhatsAppConfig().verifyToken;
+export const findUserIdByVerifyToken = (verifyToken) => {
+  const db = getDb();
+  const matched = findWorkspaceByVerifyToken(db, verifyToken);
+  return matched?.userId || "";
+};
 
-export const sendWhatsAppTextMessage = async ({ to, text }) => {
-  const config = getEffectiveWhatsAppConfig();
+export const findUserIdByPhoneNumberId = (phoneNumberId) => {
+  const db = getDb();
+  const matched = findWorkspaceByPhoneNumberId(db, phoneNumberId);
+  return matched?.userId || "";
+};
+
+export const sendWhatsAppTextMessage = async ({ userId, to, text }) => {
+  const config = getEffectiveWhatsAppConfig(userId);
 
   if (!config.accessToken || !config.phoneNumberId) {
     return {

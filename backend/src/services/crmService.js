@@ -1,5 +1,5 @@
 import { createId } from "../utils/id.js";
-import { getDb, saveDb } from "../utils/store.js";
+import { getDb, getOrCreateWorkspace, saveDb } from "../utils/store.js";
 import { nowIso, isWithinBusinessHours } from "../utils/time.js";
 import { sendWhatsAppTextMessage } from "./whatsappService.js";
 
@@ -10,11 +10,12 @@ const CONVERSATION_STATES = new Set(["NEW", "FOLLOW_UP", "CLOSED"]);
 const sortConversations = (conversations) =>
   [...conversations].sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
 
-const getTemplateById = (db, templateId) => db.templates.find((template) => template.id === templateId);
+const getTemplateById = (workspace, templateId) =>
+  workspace.templates.find((template) => template.id === templateId);
 
-const upsertConversationByPhone = (db, { phone, name = "Unknown", source = "WHATSAPP" }) => {
+const upsertConversationByPhone = (workspace, { phone, name = "Unknown", source = "WHATSAPP" }) => {
   const normalized = normalizePhone(phone);
-  let conversation = db.conversations.find((entry) => normalizePhone(entry.phone) === normalized);
+  let conversation = workspace.conversations.find((entry) => normalizePhone(entry.phone) === normalized);
 
   if (!conversation) {
     const now = nowIso();
@@ -33,7 +34,7 @@ const upsertConversationByPhone = (db, { phone, name = "Unknown", source = "WHAT
       notes: []
     };
 
-    db.conversations.push(conversation);
+    workspace.conversations.push(conversation);
   } else if (name && conversation.name === "Unknown") {
     conversation.name = name;
   }
@@ -41,7 +42,10 @@ const upsertConversationByPhone = (db, { phone, name = "Unknown", source = "WHAT
   return conversation;
 };
 
-const appendMessage = (db, { conversationId, direction, text, source, templateId = null, status = "RECEIVED" }) => {
+const appendMessage = (
+  workspace,
+  { conversationId, direction, text, source, templateId = null, status = "RECEIVED" }
+) => {
   const now = nowIso();
   const message = {
     id: createId("msg"),
@@ -55,9 +59,9 @@ const appendMessage = (db, { conversationId, direction, text, source, templateId
     templateId
   };
 
-  db.messages.push(message);
+  workspace.messages.push(message);
 
-  const conversation = db.conversations.find((entry) => entry.id === conversationId);
+  const conversation = workspace.conversations.find((entry) => entry.id === conversationId);
   if (conversation) {
     conversation.lastMessageAt = now;
     conversation.lastMessageText = text;
@@ -67,48 +71,11 @@ const appendMessage = (db, { conversationId, direction, text, source, templateId
   return message;
 };
 
-const maybeCreateAutomaticReply = async ({ db, conversation }) => {
-  const automation = db.automation;
-  if (!automation) {
-    return [];
-  }
-
-  const outboundCount = db.messages.filter(
-    (message) => message.conversationId === conversation.id && message.direction === "OUTBOUND"
-  ).length;
-
-  const actions = [];
-
-  const inBusinessHours = isWithinBusinessHours({
-    timezone: automation.timezone,
-    start: automation.businessHoursStart,
-    end: automation.businessHoursEnd
-  });
-
-  if (!inBusinessHours && automation.businessHoursReplyEnabled) {
-    const template = getTemplateById(db, automation.afterHoursTemplateId);
-    if (template) {
-      actions.push({ template });
-      // After-hours reply is enough for the same inbound event.
-      return sendAutomationMessages({ db, conversation, actions });
-    }
-  }
-
-  if (automation.autoReplyOnFirstInquiry && outboundCount === 0) {
-    const template = getTemplateById(db, automation.firstInquiryTemplateId);
-    if (template) {
-      actions.push({ template });
-    }
-  }
-
-  return sendAutomationMessages({ db, conversation, actions });
-};
-
-const sendAutomationMessages = async ({ db, conversation, actions }) => {
+const sendAutomationMessages = async ({ workspace, conversation, actions, userId }) => {
   const sentMessages = [];
 
   for (const action of actions) {
-    const outgoing = appendMessage(db, {
+    const outgoing = appendMessage(workspace, {
       conversationId: conversation.id,
       direction: "OUTBOUND",
       text: action.template.body,
@@ -119,6 +86,7 @@ const sendAutomationMessages = async ({ db, conversation, actions }) => {
 
     try {
       const provider = await sendWhatsAppTextMessage({
+        userId,
         to: conversation.phone,
         text: action.template.body
       });
@@ -135,11 +103,47 @@ const sendAutomationMessages = async ({ db, conversation, actions }) => {
   return sentMessages;
 };
 
+const maybeCreateAutomaticReply = async ({ workspace, conversation, userId }) => {
+  const automation = workspace.automation;
+  if (!automation) {
+    return [];
+  }
+
+  const outboundCount = workspace.messages.filter(
+    (message) => message.conversationId === conversation.id && message.direction === "OUTBOUND"
+  ).length;
+
+  const actions = [];
+
+  const inBusinessHours = isWithinBusinessHours({
+    timezone: automation.timezone,
+    start: automation.businessHoursStart,
+    end: automation.businessHoursEnd
+  });
+
+  if (!inBusinessHours && automation.businessHoursReplyEnabled) {
+    const template = getTemplateById(workspace, automation.afterHoursTemplateId);
+    if (template) {
+      actions.push({ template });
+      return sendAutomationMessages({ workspace, conversation, actions, userId });
+    }
+  }
+
+  if (automation.autoReplyOnFirstInquiry && outboundCount === 0) {
+    const template = getTemplateById(workspace, automation.firstInquiryTemplateId);
+    if (template) {
+      actions.push({ template });
+    }
+  }
+
+  return sendAutomationMessages({ workspace, conversation, actions, userId });
+};
+
 const isValidTimezone = (timezone) => {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
     return true;
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 };
@@ -207,9 +211,10 @@ const getAutomationValidation = ({ config, templateIds }) => {
   return { errors, warnings };
 };
 
-export const getConversations = ({ state, search } = {}) => {
+export const getConversations = ({ userId, state, search } = {}) => {
   const db = getDb();
-  let conversations = sortConversations(db.conversations);
+  const workspace = getOrCreateWorkspace(db, userId);
+  let conversations = sortConversations(workspace.conversations);
 
   if (state && state !== "ALL") {
     conversations = conversations.filter((conversation) => conversation.state === state);
@@ -228,14 +233,15 @@ export const getConversations = ({ state, search } = {}) => {
   return conversations;
 };
 
-export const getConversationDetails = (conversationId) => {
+export const getConversationDetails = ({ userId, conversationId }) => {
   const db = getDb();
-  const conversation = db.conversations.find((entry) => entry.id === conversationId);
+  const workspace = getOrCreateWorkspace(db, userId);
+  const conversation = workspace.conversations.find((entry) => entry.id === conversationId);
   if (!conversation) {
     return null;
   }
 
-  const messages = db.messages
+  const messages = workspace.messages
     .filter((message) => message.conversationId === conversationId)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
@@ -245,15 +251,16 @@ export const getConversationDetails = (conversationId) => {
   };
 };
 
-export const receiveInboundMessage = async ({ phone, name, text, source = "WHATSAPP_WEBHOOK" }) => {
+export const receiveInboundMessage = async ({ userId, phone, name, text, source = "WHATSAPP_WEBHOOK" }) => {
   const db = getDb();
-  const conversation = upsertConversationByPhone(db, {
+  const workspace = getOrCreateWorkspace(db, userId);
+  const conversation = upsertConversationByPhone(workspace, {
     phone,
     name,
     source
   });
 
-  const inbound = appendMessage(db, {
+  const inbound = appendMessage(workspace, {
     conversationId: conversation.id,
     direction: "INBOUND",
     text,
@@ -261,7 +268,7 @@ export const receiveInboundMessage = async ({ phone, name, text, source = "WHATS
     status: "RECEIVED"
   });
 
-  const automaticReplies = await maybeCreateAutomaticReply({ db, conversation });
+  const automaticReplies = await maybeCreateAutomaticReply({ workspace, conversation, userId });
 
   saveDb(db);
 
@@ -272,15 +279,16 @@ export const receiveInboundMessage = async ({ phone, name, text, source = "WHATS
   };
 };
 
-export const sendManualMessage = async ({ conversationId, text, templateId = null }) => {
+export const sendManualMessage = async ({ userId, conversationId, text, templateId = null }) => {
   const db = getDb();
-  const conversation = db.conversations.find((entry) => entry.id === conversationId);
+  const workspace = getOrCreateWorkspace(db, userId);
+  const conversation = workspace.conversations.find((entry) => entry.id === conversationId);
 
   if (!conversation) {
     return null;
   }
 
-  const message = appendMessage(db, {
+  const message = appendMessage(workspace, {
     conversationId,
     direction: "OUTBOUND",
     text,
@@ -291,6 +299,7 @@ export const sendManualMessage = async ({ conversationId, text, templateId = nul
 
   try {
     const provider = await sendWhatsAppTextMessage({
+      userId,
       to: conversation.phone,
       text
     });
@@ -305,9 +314,10 @@ export const sendManualMessage = async ({ conversationId, text, templateId = nul
   return message;
 };
 
-export const updateConversation = ({ conversationId, state, followUpAt }) => {
+export const updateConversation = ({ userId, conversationId, state, followUpAt }) => {
   const db = getDb();
-  const conversation = db.conversations.find((entry) => entry.id === conversationId);
+  const workspace = getOrCreateWorkspace(db, userId);
+  const conversation = workspace.conversations.find((entry) => entry.id === conversationId);
 
   if (!conversation) {
     return null;
@@ -337,9 +347,10 @@ export const updateConversation = ({ conversationId, state, followUpAt }) => {
   return conversation;
 };
 
-export const addConversationNote = ({ conversationId, text }) => {
+export const addConversationNote = ({ userId, conversationId, text }) => {
   const db = getDb();
-  const conversation = db.conversations.find((entry) => entry.id === conversationId);
+  const workspace = getOrCreateWorkspace(db, userId);
+  const conversation = workspace.conversations.find((entry) => entry.id === conversationId);
 
   if (!conversation) {
     return null;
@@ -358,9 +369,10 @@ export const addConversationNote = ({ conversationId, text }) => {
   return note;
 };
 
-export const createOrUpdateTemplate = ({ id, name, body, category = "CUSTOM" }) => {
+export const createOrUpdateTemplate = ({ userId, id, name, body, category = "CUSTOM" }) => {
   const db = getDb();
-  let template = db.templates.find((entry) => entry.id === id);
+  const workspace = getOrCreateWorkspace(db, userId);
+  let template = workspace.templates.find((entry) => entry.id === id);
 
   if (!template) {
     template = {
@@ -371,7 +383,7 @@ export const createOrUpdateTemplate = ({ id, name, body, category = "CUSTOM" }) 
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
-    db.templates.push(template);
+    workspace.templates.push(template);
   } else {
     template.name = name ?? template.name;
     template.body = body ?? template.body;
@@ -383,21 +395,24 @@ export const createOrUpdateTemplate = ({ id, name, body, category = "CUSTOM" }) 
   return template;
 };
 
-export const getTemplates = () => {
+export const getTemplates = (userId) => {
   const db = getDb();
-  return db.templates;
+  const workspace = getOrCreateWorkspace(db, userId);
+  return workspace.templates;
 };
 
-export const getAutomationConfig = () => {
+export const getAutomationConfig = (userId) => {
   const db = getDb();
-  return db.automation;
+  const workspace = getOrCreateWorkspace(db, userId);
+  return workspace.automation;
 };
 
-export const getAutomationSafetySnapshot = () => {
+export const getAutomationSafetySnapshot = (userId) => {
   const db = getDb();
-  const templateIds = new Set(db.templates.map((template) => template.id));
+  const workspace = getOrCreateWorkspace(db, userId);
+  const templateIds = new Set(workspace.templates.map((template) => template.id));
   const validation = getAutomationValidation({
-    config: db.automation,
+    config: workspace.automation,
     templateIds
   });
 
@@ -405,11 +420,11 @@ export const getAutomationSafetySnapshot = () => {
     warnings: validation.warnings,
     errors: validation.errors,
     enabledFeatures: [
-      db.automation.autoReplyOnFirstInquiry,
-      db.automation.businessHoursReplyEnabled,
-      db.automation.followUpReminderEnabled
+      workspace.automation.autoReplyOnFirstInquiry,
+      workspace.automation.businessHoursReplyEnabled,
+      workspace.automation.followUpReminderEnabled
     ].filter(Boolean).length,
-    followUpsDueNow: db.conversations.filter(
+    followUpsDueNow: workspace.conversations.filter(
       (conversation) =>
         conversation.state === "FOLLOW_UP" &&
         conversation.followUpAt &&
@@ -418,10 +433,11 @@ export const getAutomationSafetySnapshot = () => {
   };
 };
 
-export const updateAutomationConfig = (nextConfig) => {
+export const updateAutomationConfig = ({ userId, nextConfig }) => {
   const db = getDb();
-  const templateIds = new Set(db.templates.map((template) => template.id));
-  const mergedConfig = normalizeAutomationConfig(db.automation, nextConfig);
+  const workspace = getOrCreateWorkspace(db, userId);
+  const templateIds = new Set(workspace.templates.map((template) => template.id));
+  const mergedConfig = normalizeAutomationConfig(workspace.automation, nextConfig);
   const validation = getAutomationValidation({
     config: mergedConfig,
     templateIds
@@ -434,99 +450,110 @@ export const updateAutomationConfig = (nextConfig) => {
     throw error;
   }
 
-  db.automation = mergedConfig;
+  workspace.automation = mergedConfig;
   saveDb(db);
   return {
-    config: db.automation,
+    config: workspace.automation,
     warnings: validation.warnings
   };
 };
 
-export const getPendingFollowUps = () => {
+export const getPendingFollowUps = (userId) => {
   const db = getDb();
+  const workspace = getOrCreateWorkspace(db, userId);
   const now = Date.now();
 
-  return db.conversations
+  return workspace.conversations
     .filter((conversation) => conversation.followUpAt && new Date(conversation.followUpAt).getTime() <= now)
     .sort((a, b) => new Date(a.followUpAt) - new Date(b.followUpAt));
 };
 
-export const getAnalyticsSnapshot = () => {
+export const getAnalyticsSnapshot = (userId) => {
   const db = getDb();
+  const workspace = getOrCreateWorkspace(db, userId);
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-  const newInquiriesToday = db.messages.filter(
+  const newInquiriesToday = workspace.messages.filter(
     (message) => message.direction === "INBOUND" && message.createdAt >= dayStart
   ).length;
 
-  const pendingFollowUps = db.conversations.filter(
+  const pendingFollowUps = workspace.conversations.filter(
     (conversation) => conversation.state === "FOLLOW_UP" && conversation.followUpAt
   ).length;
 
-  const closedConversations = db.conversations.filter((conversation) => conversation.state === "CLOSED").length;
+  const closedConversations = workspace.conversations.filter((conversation) => conversation.state === "CLOSED").length;
 
   return {
     newInquiriesToday,
     pendingFollowUps,
     closedConversations,
-    totalConversations: db.conversations.length
+    totalConversations: workspace.conversations.length
   };
 };
 
 export const processFollowUpReminders = async () => {
   const db = getDb();
   const now = Date.now();
-
-  if (!db.automation.followUpReminderEnabled) {
-    return [];
-  }
-
-  const template = getTemplateById(db, db.automation.followUpReminderTemplateId);
-  if (!template) {
-    return [];
-  }
-
   const reminders = [];
+  const userIds = db.users.map((user) => user.id);
 
-  for (const conversation of db.conversations) {
-    if (conversation.state !== "FOLLOW_UP") {
+  for (const userId of userIds) {
+    const workspace = getOrCreateWorkspace(db, userId);
+
+    if (!workspace.automation.followUpReminderEnabled) {
       continue;
     }
 
-    if (!conversation.followUpAt) {
+    const template = getTemplateById(workspace, workspace.automation.followUpReminderTemplateId);
+    if (!template) {
       continue;
     }
 
-    const due = new Date(conversation.followUpAt).getTime() <= now;
-    if (!due || conversation.followUpReminderSentAt) {
-      continue;
-    }
+    for (const conversation of workspace.conversations) {
+      if (conversation.state !== "FOLLOW_UP") {
+        continue;
+      }
 
-    const message = appendMessage(db, {
-      conversationId: conversation.id,
-      direction: "OUTBOUND",
-      text: template.body,
-      source: "FOLLOW_UP_AUTOMATION",
-      templateId: template.id,
-      status: "PENDING"
-    });
+      if (!conversation.followUpAt) {
+        continue;
+      }
 
-    try {
-      const provider = await sendWhatsAppTextMessage({
-        to: conversation.phone,
-        text: template.body
+      const due = new Date(conversation.followUpAt).getTime() <= now;
+      if (!due || conversation.followUpReminderSentAt) {
+        continue;
+      }
+
+      const message = appendMessage(workspace, {
+        conversationId: conversation.id,
+        direction: "OUTBOUND",
+        text: template.body,
+        source: "FOLLOW_UP_AUTOMATION",
+        templateId: template.id,
+        status: "PENDING"
       });
-      message.status = provider.status;
-      message.externalId = provider.externalId;
-    } catch (error) {
-      message.status = "FAILED";
-      message.error = error.message;
-    }
 
-    conversation.followUpReminderSentAt = nowIso();
-    conversation.updatedAt = nowIso();
-    reminders.push({ conversationId: conversation.id, messageId: message.id });
+      try {
+        const provider = await sendWhatsAppTextMessage({
+          userId,
+          to: conversation.phone,
+          text: template.body
+        });
+        message.status = provider.status;
+        message.externalId = provider.externalId;
+      } catch (error) {
+        message.status = "FAILED";
+        message.error = error.message;
+      }
+
+      conversation.followUpReminderSentAt = nowIso();
+      conversation.updatedAt = nowIso();
+      reminders.push({
+        userId,
+        conversationId: conversation.id,
+        messageId: message.id
+      });
+    }
   }
 
   if (reminders.length > 0) {
@@ -536,8 +563,9 @@ export const processFollowUpReminders = async () => {
   return reminders;
 };
 
-export const ingestWordPressLead = async ({ name, phone, message, sourceUrl }) => {
+export const ingestWordPressLead = async ({ userId, name, phone, message, sourceUrl }) => {
   return receiveInboundMessage({
+    userId,
     phone,
     name,
     text: `Website lead from ${sourceUrl || "unknown source"}: ${message}`,
@@ -545,15 +573,16 @@ export const ingestWordPressLead = async ({ name, phone, message, sourceUrl }) =
   });
 };
 
-export const sendSetupTestMessage = async ({ phone, text }) => {
+export const sendSetupTestMessage = async ({ userId, phone, text }) => {
   const db = getDb();
-  const conversation = upsertConversationByPhone(db, {
+  const workspace = getOrCreateWorkspace(db, userId);
+  const conversation = upsertConversationByPhone(workspace, {
     phone,
     name: "WhatsApp Setup Test",
     source: "SETUP_TEST"
   });
 
-  const message = appendMessage(db, {
+  const message = appendMessage(workspace, {
     conversationId: conversation.id,
     direction: "OUTBOUND",
     text,
@@ -563,6 +592,7 @@ export const sendSetupTestMessage = async ({ phone, text }) => {
 
   try {
     const provider = await sendWhatsAppTextMessage({
+      userId,
       to: conversation.phone,
       text
     });

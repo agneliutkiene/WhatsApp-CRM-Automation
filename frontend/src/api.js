@@ -1,34 +1,10 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
-const PASSWORD_STORAGE_KEY = "wa_crm_api_password";
-
-const readStoredPassword = () => {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return String(window.localStorage.getItem(PASSWORD_STORAGE_KEY) || "");
-};
-
-let apiPassword = readStoredPassword();
-
-const applyPassword = (nextPassword = "") => {
-  apiPassword = String(nextPassword || "").trim();
-
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (apiPassword) {
-    window.localStorage.setItem(PASSWORD_STORAGE_KEY, apiPassword);
-  } else {
-    window.localStorage.removeItem(PASSWORD_STORAGE_KEY);
-  }
-};
 
 const request = async (path, options = {}) => {
   const response = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(apiPassword ? { "x-app-password": apiPassword } : {}),
       ...(options.headers || {})
     },
     ...options
@@ -50,14 +26,23 @@ const request = async (path, options = {}) => {
   return payload.data;
 };
 
-export const apiAuth = {
-  getPassword: () => apiPassword,
-  setPassword: (value) => applyPassword(value),
-  clearPassword: () => applyPassword("")
-};
-
 export const api = {
   getHealth: () => request("/health"),
+  getCurrentUser: () => request("/auth/me"),
+  register: (body) =>
+    request("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  login: (body) =>
+    request("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  logout: () =>
+    request("/auth/logout", {
+      method: "POST"
+    }),
   getAnalytics: () => request("/analytics/today"),
   getConversations: (query = "") => request(`/conversations${query}`),
   getConversation: (id) => request(`/conversations/${id}`),

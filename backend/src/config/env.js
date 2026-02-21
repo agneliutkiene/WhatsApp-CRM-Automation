@@ -18,5 +18,6 @@ export const env = {
   whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN || "verify-token",
   timezone: process.env.APP_TIMEZONE || "Asia/Kolkata",
   businessHoursStart: process.env.BUSINESS_HOURS_START || "09:00",
-  businessHoursEnd: process.env.BUSINESS_HOURS_END || "19:00"
+  businessHoursEnd: process.env.BUSINESS_HOURS_END || "19:00",
+  authSessionDays: Math.max(1, toNumber(process.env.AUTH_SESSION_DAYS, 14))
 };

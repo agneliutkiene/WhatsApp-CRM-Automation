@@ -4,7 +4,7 @@ import { createOrUpdateTemplate, getTemplates } from "../services/crmService.js"
 export const templatesRouter = express.Router();
 
 templatesRouter.get("/", (req, res) => {
-  const data = getTemplates();
+  const data = getTemplates(req.userId);
   res.json({ data });
 });
 
@@ -18,6 +18,7 @@ templatesRouter.post("/", (req, res) => {
   }
 
   const data = createOrUpdateTemplate({
+    userId: req.userId,
     name,
     body,
     category
@@ -28,6 +29,7 @@ templatesRouter.post("/", (req, res) => {
 
 templatesRouter.patch("/:id", (req, res) => {
   const data = createOrUpdateTemplate({
+    userId: req.userId,
     id: req.params.id,
     name: req.body.name,
     body: req.body.body,

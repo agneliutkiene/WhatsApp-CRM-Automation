@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { api, apiAuth } from "./api";
+import { api } from "./api";
 
 const FOLLOW_UP_YEAR = 2026;
 const CALENDAR_MONTHS = [
@@ -28,10 +28,15 @@ const showWhatsAppModal = ref(false);
 const whatsappSaving = ref(false);
 const whatsappConnected = ref(false);
 
-const authRequired = ref(false);
-const showAuthModal = ref(false);
+const showAuthModal = ref(true);
 const authSaving = ref(false);
-const authPasswordInput = ref(apiAuth.getPassword());
+const authMode = ref("login");
+const currentUser = ref(null);
+const authForm = reactive({
+  name: "",
+  email: "",
+  password: ""
+});
 
 const currentView = ref("main");
 const mainAppUrl = ref("/");
@@ -297,7 +302,8 @@ const setError = (err) => {
 
   if (err.code === "AUTH_REQUIRED") {
     showAuthModal.value = true;
-    error.value = "This dashboard is locked. Enter the API password to continue.";
+    currentUser.value = null;
+    error.value = "Please log in to access your workspace.";
     return;
   }
 
@@ -702,9 +708,22 @@ const saveWhatsAppConfig = async () => {
   }
 };
 
-const unlockDashboard = async () => {
-  if (!authPasswordInput.value.trim()) {
-    error.value = "App password is required.";
+const resetAuthForm = () => {
+  authForm.name = "";
+  authForm.email = "";
+  authForm.password = "";
+};
+
+const completeAuthentication = async (user) => {
+  currentUser.value = user;
+  showAuthModal.value = false;
+  resetAuthForm();
+  await refreshDashboard();
+};
+
+const login = async () => {
+  if (!authForm.email.trim() || !authForm.password) {
+    error.value = "Email and password are required.";
     return;
   }
 
@@ -712,12 +731,12 @@ const unlockDashboard = async () => {
   error.value = "";
 
   try {
-    apiAuth.setPassword(authPasswordInput.value.trim());
-    await refreshDashboard();
-    if (!error.value) {
-      showAuthModal.value = false;
-      showSuccess("Dashboard unlocked.");
-    }
+    const user = await api.login({
+      email: authForm.email.trim(),
+      password: authForm.password
+    });
+    await completeAuthentication(user);
+    showSuccess("Logged in.");
   } catch (err) {
     setError(err);
   } finally {
@@ -725,16 +744,47 @@ const unlockDashboard = async () => {
   }
 };
 
-const lockDashboard = () => {
-  apiAuth.clearPassword();
-  authPasswordInput.value = "";
-  showAuthModal.value = true;
-  error.value = "Dashboard locked. Enter password to continue.";
+const register = async () => {
+  if (!authForm.name.trim() || !authForm.email.trim() || !authForm.password) {
+    error.value = "Name, email, and password are required.";
+    return;
+  }
+
+  authSaving.value = true;
+  error.value = "";
+
+  try {
+    const user = await api.register({
+      name: authForm.name.trim(),
+      email: authForm.email.trim(),
+      password: authForm.password
+    });
+    await completeAuthentication(user);
+    showSuccess("Account created.");
+  } catch (err) {
+    setError(err);
+  } finally {
+    authSaving.value = false;
+  }
 };
 
-const clearSavedPassword = () => {
-  apiAuth.clearPassword();
-  authPasswordInput.value = "";
+const logout = async () => {
+  try {
+    await api.logout();
+  } catch (_err) {
+    // ignore logout API errors and clear client state regardless
+  }
+
+  currentUser.value = null;
+  showAuthModal.value = true;
+  selectedConversation.value = null;
+  selectedConversationId.value = "";
+  conversations.value = [];
+  crmLeads.value = [];
+  error.value = "";
+  success.value = "";
+  authMode.value = "login";
+  resetAuthForm();
 };
 
 const saveConversationMeta = async () => {
@@ -965,13 +1015,16 @@ const initializeDashboard = async () => {
   hydrateOnboardingState();
 
   try {
-    const health = await api.getHealth();
-    authRequired.value = Boolean(health?.authRequired);
-    if (authRequired.value && !apiAuth.getPassword()) {
-      showAuthModal.value = true;
-    }
+    await api.getHealth();
+    const me = await api.getCurrentUser();
+    currentUser.value = me;
+    showAuthModal.value = false;
   } catch (err) {
-    setError(err);
+    showAuthModal.value = true;
+    if (err?.code !== "AUTH_REQUIRED") {
+      setError(err);
+    }
+    return;
   }
 
   await refreshDashboard();
@@ -1025,8 +1078,9 @@ onMounted(initializeDashboard);
             {{ whatsappConnected ? "WhatsApp connected" : "WhatsApp not connected" }}
           </small>
         </div>
+        <small v-if="currentUser" class="session-user">{{ currentUser.email }}</small>
         <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
-        <button v-if="authRequired" class="refresh" @click="lockDashboard">Lock</button>
+        <button v-if="currentUser" class="refresh" @click="logout">Logout</button>
       </div>
     </header>
 
@@ -1523,22 +1577,38 @@ onMounted(initializeDashboard);
 
     <div v-if="showAuthModal" class="modal-backdrop">
       <section class="modal-card auth-card">
-        <h3>Unlock dashboard</h3>
-        <p class="dim">This app has API password protection enabled. Enter the password to continue.</p>
+        <h3>{{ authMode === "login" ? "Log in to your workspace" : "Create your workspace account" }}</h3>
+        <p class="dim">Each account has its own WhatsApp credentials, inbox, templates, and automation settings.</p>
+        <label v-if="authMode === 'register'">
+          Full name
+          <input v-model="authForm.name" placeholder="Your name" autocomplete="name" />
+        </label>
         <label>
-          App password
+          Email
           <input
-            v-model="authPasswordInput"
+            v-model="authForm.email"
+            type="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+            @keyup.enter="authMode === 'login' ? login() : register()"
+          />
+        </label>
+        <label>
+          Password
+          <input
+            v-model="authForm.password"
             type="password"
             autocomplete="current-password"
-            placeholder="Enter app password"
-            @keyup.enter="unlockDashboard"
+            placeholder="At least 8 characters"
+            @keyup.enter="authMode === 'login' ? login() : register()"
           />
         </label>
         <div class="modal-actions">
-          <button @click="clearSavedPassword">Clear saved</button>
-          <button class="primary" @click="unlockDashboard" :disabled="authSaving">
-            {{ authSaving ? "Unlocking..." : "Unlock" }}
+          <button @click="authMode = authMode === 'login' ? 'register' : 'login'">
+            {{ authMode === "login" ? "Create account" : "I already have an account" }}
+          </button>
+          <button class="primary" @click="authMode === 'login' ? login() : register()" :disabled="authSaving">
+            {{ authSaving ? "Please wait..." : authMode === "login" ? "Log in" : "Create account" }}
           </button>
         </div>
       </section>

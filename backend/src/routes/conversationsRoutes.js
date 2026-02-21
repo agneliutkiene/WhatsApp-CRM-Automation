@@ -13,6 +13,7 @@ export const conversationsRouter = express.Router();
 
 conversationsRouter.get("/", (req, res) => {
   const data = getConversations({
+    userId: req.userId,
     state: req.query.state,
     search: req.query.search
   });
@@ -21,12 +22,15 @@ conversationsRouter.get("/", (req, res) => {
 });
 
 conversationsRouter.get("/follow-ups/pending", (req, res) => {
-  const data = getPendingFollowUps();
+  const data = getPendingFollowUps(req.userId);
   res.json({ data });
 });
 
 conversationsRouter.get("/:id", (req, res) => {
-  const data = getConversationDetails(req.params.id);
+  const data = getConversationDetails({
+    userId: req.userId,
+    conversationId: req.params.id
+  });
   if (!data) {
     return res.status(404).json({ error: "Conversation not found" });
   }
@@ -38,6 +42,7 @@ conversationsRouter.patch("/:id", (req, res) => {
   try {
     const { state, followUpAt } = req.body;
     const data = updateConversation({
+      userId: req.userId,
       conversationId: req.params.id,
       state,
       followUpAt
@@ -62,6 +67,7 @@ conversationsRouter.post("/:id/notes", (req, res) => {
   }
 
   const data = addConversationNote({
+    userId: req.userId,
     conversationId: req.params.id,
     text
   });
@@ -82,6 +88,7 @@ conversationsRouter.post("/:id/messages", async (req, res) => {
   }
 
   const data = await sendManualMessage({
+    userId: req.userId,
     conversationId: req.params.id,
     text,
     templateId
@@ -104,6 +111,7 @@ conversationsRouter.post("/ingest/inbound", async (req, res) => {
   }
 
   const data = await receiveInboundMessage({
+    userId: req.userId,
     phone,
     name,
     text,
