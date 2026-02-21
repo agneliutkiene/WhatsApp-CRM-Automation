@@ -15,7 +15,7 @@ In your Node.js deployment settings use:
 - Branch: `main`
 - Node version: `20.x`
 - Root directory: `backend`
-- Entry file: `src/index.js`
+- Entry file: `index.js`
 - Package manager: `npm`
 
 ## 2) Environment variables
@@ -70,7 +70,7 @@ Common fixes:
 
 1. Node version must be `20.x`.
 2. Root directory must be `backend`.
-3. Entry file must be `src/index.js`.
+3. Entry file must be `index.js`.
 4. If npm install fails, redeploy after clearing cache.
 
 ## 6) Updating app after Git push
