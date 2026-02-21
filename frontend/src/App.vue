@@ -1856,7 +1856,10 @@ onMounted(initializeDashboard);
 
     <div v-if="showAuthModal" class="modal-backdrop" @click.self="closeAuthModal">
       <section class="modal-card auth-card">
-        <h3>{{ authMode === "login" ? "Log in to your workspace" : "Create your workspace account" }}</h3>
+        <div class="modal-title-row">
+          <h3>{{ authMode === "login" ? "Log in to your workspace" : "Create your workspace account" }}</h3>
+          <button type="button" class="modal-close-btn" @click="closeAuthModal" aria-label="Close login">×</button>
+        </div>
         <p class="dim">Each account has its own WhatsApp credentials, inbox, templates, and automation settings.</p>
         <label v-if="authMode === 'register'">
           Full name
@@ -1883,7 +1886,6 @@ onMounted(initializeDashboard);
           />
         </label>
         <div class="modal-actions">
-          <button v-if="!currentUser" @click="closeAuthModal">Continue preview</button>
           <button @click="authMode = authMode === 'login' ? 'register' : 'login'">
             {{ authMode === "login" ? "Create account" : "I already have an account" }}
           </button>
@@ -3086,6 +3088,32 @@ button.primary:hover {
 
 .modal-note {
   margin: 10px 0 0;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-close-btn {
+  border: 1px solid #3b6556;
+  background: rgba(12, 27, 22, 0.88);
+  color: #d1efe1;
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  font-size: 1rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.modal-close-btn:hover {
+  border-color: #50b585;
+  background: rgba(23, 56, 44, 0.9);
 }
 
 .modal-actions {
