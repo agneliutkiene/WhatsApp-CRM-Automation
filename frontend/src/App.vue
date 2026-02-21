@@ -252,7 +252,7 @@ const onboardingProgressPercent = computed(() =>
   Math.round((onboardingCompletedCount.value / onboardingSteps.value.length) * 100)
 );
 const onboardingComplete = computed(() => onboardingCompletedCount.value >= onboardingSteps.value.length);
-const showOnboardingChecklist = computed(() => !isAuthenticated.value || !onboardingComplete.value);
+const showOnboardingChecklist = computed(() => isAuthenticated.value && !onboardingComplete.value);
 const onboardingButtonLabel = (step) => {
   if (step.id === "test") {
     return step.done ? "Re-run" : step.cta;
