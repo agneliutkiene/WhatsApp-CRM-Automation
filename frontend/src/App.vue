@@ -1345,6 +1345,11 @@ onMounted(initializeDashboard);
     <div class="bg-blob"></div>
     <div class="bg-ring"></div>
 
+    <div v-if="currentUser" class="account-strip">
+      <span class="account-label">Logged in as</span>
+      <strong class="account-email">{{ currentUser.email }}</strong>
+    </div>
+
     <header class="topbar">
       <div class="brand">&lt;/&gt; WhatsAppCRM</div>
       <nav class="top-nav">
@@ -1375,7 +1380,6 @@ onMounted(initializeDashboard);
           </small>
           <small v-else class="connection-status" data-connected="false">Preview mode</small>
         </div>
-        <small v-if="currentUser" class="session-user">{{ currentUser.email }}</small>
         <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
         <button v-if="currentUser" class="refresh" @click="logout">Logout</button>
       </div>
@@ -1954,6 +1958,26 @@ onMounted(initializeDashboard);
 
 .bg-ring {
   display: none;
+}
+
+.account-strip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 2px 2px 0;
+}
+
+.account-label {
+  font-size: 0.75rem;
+  color: #8ea99f;
+}
+
+.account-email {
+  font-size: 0.82rem;
+  color: #d4efe2;
+  letter-spacing: 0.01em;
 }
 
 .topbar {
@@ -3171,6 +3195,11 @@ button.primary:hover {
 }
 
 @media (max-width: 1180px) {
+  .account-strip {
+    justify-content: flex-start;
+    padding-left: 2px;
+  }
+
   .topbar {
     flex-direction: column;
     align-items: flex-start;
