@@ -28,6 +28,7 @@ const request = async (path, options = {}) => {
 
 export const api = {
   getHealth: () => request("/health"),
+  getAuthBootstrap: () => request("/auth/bootstrap"),
   getCurrentUser: () => request("/auth/me"),
   register: (body) =>
     request("/auth/register", {

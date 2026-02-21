@@ -20,7 +20,6 @@ const CALENDAR_MONTHS = [
 const CALENDAR_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const VALID_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ONBOARDING_STORAGE_KEY = "wa_crm_onboarding_v1";
-const AUTH_HAS_ACCOUNT_KEY = "wa_crm_has_account_v1";
 const PREVIEW_CONVERSATIONS = [
   {
     id: "preview_conv_1",
@@ -114,6 +113,7 @@ const whatsappConnected = ref(false);
 const showAuthModal = ref(false);
 const authSaving = ref(false);
 const authMode = ref("login");
+const hasExistingAccounts = ref(false);
 const currentUser = ref(null);
 const authForm = reactive({
   name: "",
@@ -406,12 +406,17 @@ const applyAutomationSafety = (data = {}) => {
   automationSafety.followUpsDueNow = data.followUpsDueNow || 0;
 };
 
-const openLoginModal = () => {
-  if (typeof window !== "undefined" && window.localStorage.getItem(AUTH_HAS_ACCOUNT_KEY) === "1") {
-    authMode.value = "login";
-  } else {
-    authMode.value = "register";
+const syncAuthBootstrap = async () => {
+  try {
+    const data = await api.getAuthBootstrap();
+    hasExistingAccounts.value = Boolean(data?.hasAccounts);
+  } catch (_err) {
+    // keep default when bootstrap endpoint is unavailable
   }
+};
+
+const openLoginModal = () => {
+  authMode.value = hasExistingAccounts.value ? "login" : "register";
   showAuthModal.value = true;
 };
 
@@ -1041,9 +1046,7 @@ const login = async () => {
       email: authForm.email.trim(),
       password: authForm.password
     });
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(AUTH_HAS_ACCOUNT_KEY, "1");
-    }
+    hasExistingAccounts.value = true;
     await completeAuthentication(user);
     showSuccess("Logged in.");
   } catch (err) {
@@ -1073,12 +1076,17 @@ const register = async () => {
       email: authForm.email.trim(),
       password: authForm.password
     });
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(AUTH_HAS_ACCOUNT_KEY, "1");
-    }
+    hasExistingAccounts.value = true;
     await completeAuthentication(user);
     showSuccess("Account created.");
   } catch (err) {
+    const message = String(err?.message || "").toLowerCase();
+    if (message.includes("already exists")) {
+      hasExistingAccounts.value = true;
+      authMode.value = "login";
+      error.value = "Account already exists. Please log in.";
+      return;
+    }
     setError(err);
   } finally {
     authSaving.value = false;
@@ -1385,8 +1393,10 @@ const initializeDashboard = async () => {
 
   try {
     await api.getHealth();
+    await syncAuthBootstrap();
     const me = await api.getCurrentUser();
     currentUser.value = me;
+    hasExistingAccounts.value = true;
     showAuthModal.value = false;
   } catch (err) {
     showAuthModal.value = false;

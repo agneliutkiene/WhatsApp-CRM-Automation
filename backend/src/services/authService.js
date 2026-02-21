@@ -236,3 +236,8 @@ export const logoutSessionByToken = (token) => {
   db.authSessions = db.authSessions.filter((entry) => entry.tokenHash !== tokenHash);
   saveDb(db);
 };
+
+export const hasAnyAccounts = () => {
+  const db = getDb();
+  return Array.isArray(db.users) && db.users.length > 0;
+};

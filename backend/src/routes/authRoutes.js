@@ -1,6 +1,7 @@
 import express from "express";
 import {
   clearAuthCookie,
+  hasAnyAccounts,
   loginAccount,
   logoutSessionByToken,
   registerAccount,
@@ -8,6 +9,14 @@ import {
 } from "../services/authService.js";
 
 export const authRouter = express.Router();
+
+authRouter.get("/bootstrap", (_req, res) => {
+  return res.json({
+    data: {
+      hasAccounts: hasAnyAccounts()
+    }
+  });
+});
 
 authRouter.get("/me", (req, res) => {
   if (!req.user) {
