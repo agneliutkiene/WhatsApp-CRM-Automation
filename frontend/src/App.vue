@@ -20,6 +20,7 @@ const CALENDAR_MONTHS = [
 const CALENDAR_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const VALID_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ONBOARDING_STORAGE_KEY = "wa_crm_onboarding_v1";
+const AUTH_HAS_ACCOUNT_KEY = "wa_crm_has_account_v1";
 const PREVIEW_CONVERSATIONS = [
   {
     id: "preview_conv_1",
@@ -117,7 +118,8 @@ const currentUser = ref(null);
 const authForm = reactive({
   name: "",
   email: "",
-  password: ""
+  password: "",
+  confirmPassword: ""
 });
 
 const currentView = ref("main");
@@ -379,7 +381,11 @@ const applyAutomationSafety = (data = {}) => {
 };
 
 const openLoginModal = () => {
-  authMode.value = "login";
+  if (typeof window !== "undefined" && window.localStorage.getItem(AUTH_HAS_ACCOUNT_KEY) === "1") {
+    authMode.value = "login";
+  } else {
+    authMode.value = "register";
+  }
   showAuthModal.value = true;
 };
 
@@ -500,7 +506,7 @@ const setError = (err) => {
   if (err.code === "AUTH_REQUIRED") {
     currentUser.value = null;
     loadPreviewDashboard();
-    showAuthModal.value = true;
+    openLoginModal();
     error.value = "Please log in to access your workspace.";
     return;
   }
@@ -939,6 +945,7 @@ const resetAuthForm = () => {
   authForm.name = "";
   authForm.email = "";
   authForm.password = "";
+  authForm.confirmPassword = "";
 };
 
 const completeAuthentication = async (user) => {
@@ -962,6 +969,9 @@ const login = async () => {
       email: authForm.email.trim(),
       password: authForm.password
     });
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTH_HAS_ACCOUNT_KEY, "1");
+    }
     await completeAuthentication(user);
     showSuccess("Logged in.");
   } catch (err) {
@@ -972,8 +982,13 @@ const login = async () => {
 };
 
 const register = async () => {
-  if (!authForm.name.trim() || !authForm.email.trim() || !authForm.password) {
-    error.value = "Name, email, and password are required.";
+  if (!authForm.name.trim() || !authForm.email.trim() || !authForm.password || !authForm.confirmPassword) {
+    error.value = "Name, email, password, and repeat password are required.";
+    return;
+  }
+
+  if (authForm.password !== authForm.confirmPassword) {
+    error.value = "Passwords do not match.";
     return;
   }
 
@@ -986,6 +1001,9 @@ const register = async () => {
       email: authForm.email.trim(),
       password: authForm.password
     });
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTH_HAS_ACCOUNT_KEY, "1");
+    }
     await completeAuthentication(user);
     showSuccess("Account created.");
   } catch (err) {
@@ -1880,17 +1898,27 @@ onMounted(initializeDashboard);
           <input
             v-model="authForm.password"
             type="password"
-            autocomplete="current-password"
+            :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'"
             placeholder="At least 8 characters"
             @keyup.enter="authMode === 'login' ? login() : register()"
           />
         </label>
+        <label v-if="authMode === 'register'">
+          Repeat password
+          <input
+            v-model="authForm.confirmPassword"
+            type="password"
+            autocomplete="new-password"
+            placeholder="Repeat your password"
+            @keyup.enter="register()"
+          />
+        </label>
         <div class="modal-actions">
           <button @click="authMode = authMode === 'login' ? 'register' : 'login'">
-            {{ authMode === "login" ? "Create account" : "I already have an account" }}
+            {{ authMode === "login" ? "Switch to Sign up" : "Switch to Log in" }}
           </button>
           <button class="primary" @click="authMode === 'login' ? login() : register()" :disabled="authSaving">
-            {{ authSaving ? "Please wait..." : authMode === "login" ? "Log in" : "Create account" }}
+            {{ authSaving ? "Please wait..." : authMode === "login" ? "Log in" : "Sign up" }}
           </button>
         </div>
       </section>
