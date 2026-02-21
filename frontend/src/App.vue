@@ -217,7 +217,7 @@ const onboardingSteps = computed(() => [
   {
     id: "connect",
     title: "Connect WhatsApp API",
-    done: whatsappConnected.value,
+    done: isAuthenticated.value && whatsappConnected.value,
     hint: "Business phone is required. Add Phone number ID + Access token for live delivery.",
     cta: "Connect now",
     action: openWhatsAppModal
@@ -225,7 +225,7 @@ const onboardingSteps = computed(() => [
   {
     id: "test",
     title: "Test WhatsApp connection",
-    done: Boolean(whatsappLastTestAt.value),
+    done: isAuthenticated.value && Boolean(whatsappLastTestAt.value),
     hint: "Send one test from this dashboard. Without Phone number ID + Access token it runs in CRM-only mode.",
     cta: "Run test",
     action: runWhatsAppConnectionTest
@@ -233,7 +233,7 @@ const onboardingSteps = computed(() => [
   {
     id: "automation",
     title: "Save automation rules",
-    done: onboardingState.automationSaved,
+    done: isAuthenticated.value && onboardingState.automationSaved,
     hint: "Choose templates and business hours, then click Save automation.",
     cta: "Open automation",
     action: () => scrollToSection("automations")
@@ -241,7 +241,7 @@ const onboardingSteps = computed(() => [
   {
     id: "lead",
     title: "Push first lead to CRM",
-    done: onboardingState.leadAdded,
+    done: isAuthenticated.value && onboardingState.leadAdded,
     hint: "Open CRM window and push one lead from Lead -> WhatsApp CRM form.",
     cta: "Open CRM",
     action: openCrmWindow
@@ -252,6 +252,7 @@ const onboardingProgressPercent = computed(() =>
   Math.round((onboardingCompletedCount.value / onboardingSteps.value.length) * 100)
 );
 const onboardingComplete = computed(() => onboardingCompletedCount.value >= onboardingSteps.value.length);
+const showOnboardingChecklist = computed(() => !isAuthenticated.value || !onboardingComplete.value);
 const onboardingButtonLabel = (step) => {
   if (step.id === "test") {
     return step.done ? "Re-run" : step.cta;
@@ -1475,7 +1476,7 @@ onMounted(initializeDashboard);
     <p v-if="success" class="success-banner">{{ success }}</p>
 
     <template v-if="!isCrmView">
-      <section v-if="!onboardingComplete" class="card setup-card">
+      <section v-if="showOnboardingChecklist" class="card setup-card">
         <div class="setup-heading">
           <h3>Onboarding checklist</h3>
           <span class="setup-progress">{{ onboardingCompletedCount }}/{{ onboardingSteps.length }} completed</span>
