@@ -133,6 +133,10 @@ const whatsappConfig = reactive({
   accessToken: "",
   verifyToken: ""
 });
+const whatsappCapabilities = reactive({
+  liveMessagingReady: false,
+  webhookRoutingReady: false
+});
 
 const analytics = ref({
   newInquiriesToday: 0,
@@ -213,7 +217,7 @@ const onboardingSteps = computed(() => [
     id: "connect",
     title: "Connect WhatsApp API",
     done: whatsappConnected.value,
-    hint: "Add phone number ID, access token, and verify token from Meta API setup.",
+    hint: "Business phone is required. Add Phone number ID + Access token for live delivery.",
     cta: "Connect now",
     action: openWhatsAppModal
   },
@@ -371,6 +375,12 @@ const applyWhatsAppConfig = (data = {}) => {
   whatsappConfig.verifyToken = data.verifyToken || "";
   whatsappConfig.accessToken = "";
   whatsappConnected.value = Boolean(data.isConnected);
+  whatsappCapabilities.liveMessagingReady = Boolean(
+    data.liveMessagingReady ?? (data.hasAccessToken && data.phoneNumberId)
+  );
+  whatsappCapabilities.webhookRoutingReady = Boolean(
+    data.webhookRoutingReady ?? (data.verifyToken && data.phoneNumberId)
+  );
 };
 
 const applyAutomationSafety = (data = {}) => {
@@ -809,13 +819,10 @@ const persistOnboardingState = () => {
 };
 
 const applySuggestedCredentials = () => {
-  if (!whatsappConfig.verifyToken.trim()) {
-    whatsappConfig.verifyToken = "whatsapp-crm-verify-2026";
-  }
   if (!whatsappConfig.businessPhone.trim()) {
     whatsappConfig.businessPhone = "+919876543210";
   }
-  showSuccess("Suggested credential examples applied.");
+  showSuccess("Business phone example applied.");
 };
 
 const loadConversations = async () => {
@@ -916,12 +923,18 @@ const saveWhatsAppConfig = async () => {
     return;
   }
 
+  const businessPhone = whatsappConfig.businessPhone.trim();
+  if (!businessPhone) {
+    error.value = "Business phone number is required.";
+    return;
+  }
+
   whatsappSaving.value = true;
   error.value = "";
 
   try {
     const payload = {
-      businessPhone: whatsappConfig.businessPhone.trim(),
+      businessPhone,
       phoneNumberId: whatsappConfig.phoneNumberId.trim(),
       verifyToken: whatsappConfig.verifyToken.trim()
     };
@@ -933,7 +946,11 @@ const saveWhatsAppConfig = async () => {
     const data = await api.updateWhatsAppConfig(payload);
     applyWhatsAppConfig(data || {});
     showWhatsAppModal.value = false;
-    showSuccess("WhatsApp credentials saved.");
+    if (whatsappCapabilities.liveMessagingReady) {
+      showSuccess("WhatsApp credentials saved.");
+    } else {
+      showSuccess("Phone connected. Add Phone number ID + Access token for live WhatsApp delivery.");
+    }
   } catch (err) {
     setError(err);
   } finally {
@@ -1119,7 +1136,7 @@ const sendMessage = async () => {
   }
 
   try {
-    await api.sendMessage(selectedConversation.value.id, {
+    const sent = await api.sendMessage(selectedConversation.value.id, {
       text: messageInput.value.trim()
     });
 
@@ -1128,7 +1145,11 @@ const sendMessage = async () => {
     await loadConversations();
     await loadSelectedConversation();
     analytics.value = await api.getAnalytics();
-    showSuccess("Message sent.");
+    if (sent?.status === "MOCKED") {
+      showSuccess("Message saved in CRM only. Add Phone number ID + Access token for live WhatsApp delivery.");
+    } else {
+      showSuccess("Message sent.");
+    }
   } catch (err) {
     setError(err);
   }
@@ -1841,31 +1862,34 @@ onMounted(initializeDashboard);
       <section class="modal-card">
         <h3>Connect your WhatsApp</h3>
         <p class="dim">
-          Add your WhatsApp Business API credentials. This enables real message sending from the dashboard.
+          Business phone number is required. Other fields are optional and unlock advanced capabilities.
         </p>
         <div class="modal-grid">
           <label>
-            Business phone number
+            Business phone number *
             <input v-model="whatsappConfig.businessPhone" placeholder="+919876543210" />
             <small class="field-hint">Use full international format, no spaces.</small>
           </label>
           <label>
-            Phone number ID
+            Phone number ID (optional)
             <input v-model="whatsappConfig.phoneNumberId" placeholder="123456789012345" />
-            <small class="field-hint">From Meta Developer -> WhatsApp -> API Setup.</small>
+            <small class="field-hint">Required with Access token for real WhatsApp delivery.</small>
           </label>
           <label>
-            Access token
+            Access token (optional)
             <input v-model="whatsappConfig.accessToken" type="password" placeholder="Meta access token" />
-            <small class="field-hint">Paste temporary/permanent token from Meta.</small>
+            <small class="field-hint">Required with Phone number ID for real WhatsApp delivery.</small>
           </label>
           <label>
-            Webhook verify token
+            Webhook verify token (optional)
             <input v-model="whatsappConfig.verifyToken" placeholder="whatsapp-crm-verify-2026" />
-            <small class="field-hint">Use same token in Meta webhook configuration.</small>
+            <small class="field-hint">Needed for Meta webhook verification (inbound sync).</small>
           </label>
         </div>
-        <p class="dim modal-note">Access token stays hidden. Leave it blank to keep the current token unchanged.</p>
+        <p class="dim modal-note">
+          Phone only = CRM connected mode. Add Phone number ID + Access token for live sending. Access token stays
+          hidden.
+        </p>
         <div class="modal-actions">
           <button @click="applySuggestedCredentials">Use examples</button>
           <button @click="closeWhatsAppModal">Cancel</button>

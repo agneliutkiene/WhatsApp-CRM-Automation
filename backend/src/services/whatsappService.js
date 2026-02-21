@@ -29,12 +29,21 @@ export const getPublicWhatsAppConfig = (userId) => {
   const effective = getEffectiveWhatsAppConfig(userId);
   const db = getDb();
   const stored = getStoredWhatsAppConfig(db, userId);
+  const hasBusinessPhone = Boolean(String(effective.businessPhone || "").trim());
+  const hasPhoneNumberId = Boolean(String(effective.phoneNumberId || "").trim());
+  const hasAccessToken = Boolean(String(effective.accessToken || "").trim());
+  const hasVerifyToken = Boolean(String(effective.verifyToken || "").trim());
+
   return {
     businessPhone: effective.businessPhone,
     phoneNumberId: effective.phoneNumberId,
     verifyToken: effective.verifyToken,
-    hasAccessToken: Boolean(effective.accessToken),
-    isConnected: Boolean(effective.accessToken && effective.phoneNumberId),
+    hasAccessToken,
+    hasPhoneNumberId,
+    hasVerifyToken,
+    isConnected: hasBusinessPhone,
+    liveMessagingReady: hasAccessToken && hasPhoneNumberId,
+    webhookRoutingReady: hasVerifyToken && hasPhoneNumberId,
     webhookConfirmedAt: stored.webhookConfirmedAt || null,
     lastTestSentAt: stored.lastTestSentAt || null
   };
@@ -44,9 +53,15 @@ export const updateWhatsAppConfig = ({ userId, ...nextConfig } = {}) => {
   const db = getDb();
   const workspace = getOrCreateWorkspace(db, userId);
   const current = workspace.whatsappConfig || {};
+  const nextBusinessPhone = String(nextConfig.businessPhone ?? current.businessPhone ?? "").trim();
+  if (!nextBusinessPhone) {
+    const error = new Error("Business phone number is required.");
+    error.statusCode = 400;
+    throw error;
+  }
 
   workspace.whatsappConfig = {
-    businessPhone: String(nextConfig.businessPhone ?? current.businessPhone ?? "").trim(),
+    businessPhone: nextBusinessPhone,
     phoneNumberId: String(nextConfig.phoneNumberId ?? current.phoneNumberId ?? "").trim(),
     accessToken: String(nextConfig.accessToken ?? current.accessToken ?? "").trim(),
     verifyToken: String(nextConfig.verifyToken ?? current.verifyToken ?? "").trim(),
@@ -87,16 +102,18 @@ export const getWhatsAppConnectionStatus = ({ userId, requestBaseUrl = "" } = {}
     "$1"
   );
   const connected = Boolean(config.isConnected);
-  const hasVerifyToken = Boolean(config.verifyToken);
+  const hasVerifyToken = Boolean(config.hasVerifyToken);
   const webhookConfirmed = Boolean(config.webhookConfirmedAt);
   const testMessageSent = Boolean(config.lastTestSentAt);
 
   return {
     connected,
     hasVerifyToken,
+    liveMessagingReady: Boolean(config.liveMessagingReady),
+    webhookRoutingReady: Boolean(config.webhookRoutingReady),
     webhookConfirmed,
     testMessageSent,
-    completed: connected && webhookConfirmed && testMessageSent,
+    completed: connected && config.liveMessagingReady && webhookConfirmed && testMessageSent,
     webhookUrl,
     verifyToken: config.verifyToken,
     lastTestSentAt: config.lastTestSentAt,

@@ -211,6 +211,29 @@ const getAutomationValidation = ({ config, templateIds }) => {
   return { errors, warnings };
 };
 
+const getAutomationMessagingWarnings = ({ config, whatsappConfig = {} }) => {
+  const warnings = [];
+  const needsOutboundMessaging =
+    Boolean(config.autoReplyOnFirstInquiry) ||
+    Boolean(config.businessHoursReplyEnabled) ||
+    Boolean(config.followUpReminderEnabled);
+
+  if (!needsOutboundMessaging) {
+    return warnings;
+  }
+
+  const hasPhoneNumberId = Boolean(String(whatsappConfig.phoneNumberId || "").trim());
+  const hasAccessToken = Boolean(String(whatsappConfig.accessToken || "").trim());
+
+  if (!hasPhoneNumberId || !hasAccessToken) {
+    warnings.push(
+      "Automation replies are in preview mode. Add Phone number ID and Access token for live WhatsApp delivery."
+    );
+  }
+
+  return warnings;
+};
+
 export const getConversations = ({ userId, state, search } = {}) => {
   const db = getDb();
   const workspace = getOrCreateWorkspace(db, userId);
@@ -415,9 +438,13 @@ export const getAutomationSafetySnapshot = (userId) => {
     config: workspace.automation,
     templateIds
   });
+  const channelWarnings = getAutomationMessagingWarnings({
+    config: workspace.automation,
+    whatsappConfig: workspace.whatsappConfig
+  });
 
   return {
-    warnings: validation.warnings,
+    warnings: [...validation.warnings, ...channelWarnings],
     errors: validation.errors,
     enabledFeatures: [
       workspace.automation.autoReplyOnFirstInquiry,
@@ -442,6 +469,10 @@ export const updateAutomationConfig = ({ userId, nextConfig }) => {
     config: mergedConfig,
     templateIds
   });
+  const channelWarnings = getAutomationMessagingWarnings({
+    config: mergedConfig,
+    whatsappConfig: workspace.whatsappConfig
+  });
 
   if (validation.errors.length > 0) {
     const error = new Error(validation.errors[0]);
@@ -454,7 +485,7 @@ export const updateAutomationConfig = ({ userId, nextConfig }) => {
   saveDb(db);
   return {
     config: workspace.automation,
-    warnings: validation.warnings
+    warnings: [...validation.warnings, ...channelWarnings]
   };
 };
 

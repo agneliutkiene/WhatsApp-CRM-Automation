@@ -74,14 +74,20 @@ integrationsRouter.get("/whatsapp/status", (req, res) => {
 });
 
 integrationsRouter.patch("/whatsapp/config", (req, res) => {
-  const data = updateWhatsAppConfig({
-    userId: req.userId,
-    businessPhone: req.body.businessPhone,
-    phoneNumberId: req.body.phoneNumberId,
-    accessToken: req.body.accessToken,
-    verifyToken: req.body.verifyToken
-  });
-  return res.json({ data });
+  try {
+    const data = updateWhatsAppConfig({
+      userId: req.userId,
+      businessPhone: req.body.businessPhone,
+      phoneNumberId: req.body.phoneNumberId,
+      accessToken: req.body.accessToken,
+      verifyToken: req.body.verifyToken
+    });
+    return res.json({ data });
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({
+      error: error.message || "Invalid WhatsApp configuration."
+    });
+  }
 });
 
 integrationsRouter.post("/whatsapp/confirm-webhook", (req, res) => {
