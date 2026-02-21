@@ -20,6 +20,88 @@ const CALENDAR_MONTHS = [
 const CALENDAR_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const VALID_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ONBOARDING_STORAGE_KEY = "wa_crm_onboarding_v1";
+const PREVIEW_CONVERSATIONS = [
+  {
+    id: "preview_conv_1",
+    name: "Aarav Mehta",
+    phone: "+919812345678",
+    state: "NEW",
+    source: "WHATSAPP",
+    createdAt: "2026-02-19T15:10:00.000Z",
+    updatedAt: "2026-02-19T15:40:12.000Z",
+    lastMessageAt: "2026-02-19T15:40:12.000Z",
+    lastMessageText: "Hi, I need pricing details for website setup.",
+    followUpAt: null,
+    followUpReminderSentAt: null,
+    notes: []
+  },
+  {
+    id: "preview_conv_2",
+    name: "Priya Rao",
+    phone: "+9197711112222",
+    state: "FOLLOW_UP",
+    source: "WORDPRESS_FORM",
+    createdAt: "2026-02-19T14:20:00.000Z",
+    updatedAt: "2026-02-19T15:22:00.000Z",
+    lastMessageAt: "2026-02-19T15:22:00.000Z",
+    lastMessageText: "Can we schedule a demo tomorrow?",
+    followUpAt: "2026-02-20T09:00:00.000Z",
+    followUpReminderSentAt: null,
+    notes: [
+      {
+        id: "preview_note_1",
+        text: "Interested in business hosting + WhatsApp automation bundle.",
+        createdAt: "2026-02-19T15:25:00.000Z"
+      }
+    ]
+  }
+];
+const PREVIEW_MESSAGES = {
+  preview_conv_1: [
+    {
+      id: "preview_msg_1",
+      conversationId: "preview_conv_1",
+      direction: "INBOUND",
+      text: "Hi, I need pricing details for website setup.",
+      createdAt: "2026-02-19T15:40:12.000Z",
+      channel: "WHATSAPP",
+      source: "WHATSAPP_WEBHOOK",
+      status: "RECEIVED"
+    }
+  ],
+  preview_conv_2: [
+    {
+      id: "preview_msg_2",
+      conversationId: "preview_conv_2",
+      direction: "INBOUND",
+      text: "Can we schedule a demo tomorrow?",
+      createdAt: "2026-02-19T15:22:00.000Z",
+      channel: "WHATSAPP",
+      source: "WORDPRESS_FORM",
+      status: "RECEIVED"
+    }
+  ]
+};
+const PREVIEW_TEMPLATES = [
+  {
+    id: "tpl_first_inquiry",
+    name: "First Inquiry Reply",
+    body: "Thanks for reaching out. We received your message and will reply shortly.",
+    category: "AUTO_REPLY"
+  },
+  {
+    id: "tpl_after_hours",
+    name: "After Hours Reply",
+    body: "Thanks for your message. We are offline now, but we will respond during business hours.",
+    category: "AUTO_REPLY"
+  },
+  {
+    id: "tpl_follow_up",
+    name: "Follow-up Reminder",
+    body: "Quick follow-up on your request. Let us know if you need any help.",
+    category: "FOLLOW_UP"
+  }
+];
 
 const loading = ref(false);
 const error = ref("");
@@ -28,7 +110,7 @@ const showWhatsAppModal = ref(false);
 const whatsappSaving = ref(false);
 const whatsappConnected = ref(false);
 
-const showAuthModal = ref(true);
+const showAuthModal = ref(false);
 const authSaving = ref(false);
 const authMode = ref("login");
 const currentUser = ref(null);
@@ -123,6 +205,7 @@ const onboardingState = reactive({
 
 const states = ["ALL", "NEW", "FOLLOW_UP", "CLOSED"];
 const isCrmView = computed(() => currentView.value === "crm");
+const isAuthenticated = computed(() => Boolean(currentUser.value?.id));
 const onboardingSteps = computed(() => [
   {
     id: "connect",
@@ -295,14 +378,129 @@ const applyAutomationSafety = (data = {}) => {
   automationSafety.followUpsDueNow = data.followUpsDueNow || 0;
 };
 
+const openLoginModal = () => {
+  authMode.value = "login";
+  showAuthModal.value = true;
+};
+
+const closeAuthModal = () => {
+  showAuthModal.value = false;
+  if (!isAuthenticated.value) {
+    resetAuthForm();
+  }
+};
+
+const requireAuthentication = (intent = "continue") => {
+  if (isAuthenticated.value) {
+    return true;
+  }
+
+  openLoginModal();
+  error.value = `Please log in to ${intent}.`;
+  return false;
+};
+
+const getFilteredPreviewConversations = () => {
+  let dataset = [...PREVIEW_CONVERSATIONS];
+
+  if (filters.state && filters.state !== "ALL") {
+    dataset = dataset.filter((conversation) => conversation.state === filters.state);
+  }
+
+  const term = filters.search.trim().toLowerCase();
+  if (!term) {
+    return dataset;
+  }
+
+  return dataset.filter(
+    (conversation) =>
+      String(conversation.name || "")
+        .toLowerCase()
+        .includes(term) ||
+      String(conversation.phone || "")
+        .toLowerCase()
+        .includes(term) ||
+      String(conversation.lastMessageText || "")
+        .toLowerCase()
+        .includes(term)
+  );
+};
+
+const setPreviewSelectedConversation = () => {
+  if (!selectedConversationId.value) {
+    selectedConversation.value = null;
+    followUpDate.value = "";
+    followUpTime.value = "09:00";
+    return;
+  }
+
+  const base = PREVIEW_CONVERSATIONS.find((entry) => entry.id === selectedConversationId.value);
+  if (!base) {
+    selectedConversation.value = null;
+    return;
+  }
+
+  const details = {
+    ...base,
+    notes: [...(base.notes || [])],
+    messages: [...(PREVIEW_MESSAGES[base.id] || [])]
+  };
+  selectedConversation.value = details;
+
+  const parsedFollowUp = parseIsoToFollowUpFields(details.followUpAt);
+  followUpDate.value = parsedFollowUp.date;
+  followUpTime.value = parsedFollowUp.time;
+};
+
+const loadPreviewDashboard = () => {
+  analytics.value = {
+    newInquiriesToday: 2,
+    pendingFollowUps: 1,
+    closedConversations: 0,
+    totalConversations: 2
+  };
+
+  templates.value = PREVIEW_TEMPLATES.map((template) => ({ ...template }));
+  Object.assign(automation, {
+    autoReplyOnFirstInquiry: true,
+    firstInquiryTemplateId: "tpl_first_inquiry",
+    businessHoursReplyEnabled: true,
+    afterHoursTemplateId: "tpl_after_hours",
+    followUpReminderEnabled: true,
+    followUpReminderTemplateId: "tpl_follow_up",
+    timezone: "Asia/Kolkata",
+    businessHoursStart: "09:00",
+    businessHoursEnd: "19:00"
+  });
+  applyWhatsAppConfig({
+    isConnected: false,
+    businessPhone: "",
+    phoneNumberId: "",
+    verifyToken: ""
+  });
+  applyAutomationSafety({
+    warnings: ["Preview mode: sign in to use real automation and WhatsApp messaging."],
+    errors: [],
+    enabledFeatures: 3,
+    followUpsDueNow: 1
+  });
+  automationWarnings.value = [];
+
+  crmLeads.value = PREVIEW_CONVERSATIONS.map((conversation) => ({ ...conversation }));
+  conversations.value = getFilteredPreviewConversations();
+  ensureSelectedConversation();
+  setPreviewSelectedConversation();
+};
+
 const setError = (err) => {
   if (!err) {
     return;
   }
 
   if (err.code === "AUTH_REQUIRED") {
-    showAuthModal.value = true;
     currentUser.value = null;
+    loadPreviewDashboard();
+    showAuthModal.value = true;
     error.value = "Please log in to access your workspace.";
     return;
   }
@@ -615,16 +813,32 @@ const applySuggestedCredentials = () => {
 };
 
 const loadConversations = async () => {
+  if (!isAuthenticated.value) {
+    conversations.value = getFilteredPreviewConversations();
+    ensureSelectedConversation();
+    return;
+  }
+
   const data = await api.getConversations(buildConversationQuery());
   conversations.value = data;
   ensureSelectedConversation();
 };
 
 const loadCrmLeads = async () => {
+  if (!isAuthenticated.value) {
+    crmLeads.value = PREVIEW_CONVERSATIONS.map((conversation) => ({ ...conversation }));
+    return;
+  }
+
   crmLeads.value = await api.getConversations();
 };
 
 const loadSelectedConversation = async () => {
+  if (!isAuthenticated.value) {
+    setPreviewSelectedConversation();
+    return;
+  }
+
   if (!selectedConversationId.value) {
     selectedConversation.value = null;
     return;
@@ -638,6 +852,11 @@ const loadSelectedConversation = async () => {
 };
 
 const refreshDashboard = async () => {
+  if (!isAuthenticated.value) {
+    loadPreviewDashboard();
+    return;
+  }
+
   loading.value = true;
   error.value = "";
 
@@ -668,6 +887,10 @@ const refreshDashboard = async () => {
 };
 
 const openWhatsAppModal = async () => {
+  if (!requireAuthentication("connect your WhatsApp")) {
+    return;
+  }
+
   try {
     const data = await api.getWhatsAppConfig();
     applyWhatsAppConfig(data || {});
@@ -683,6 +906,10 @@ const closeWhatsAppModal = () => {
 };
 
 const saveWhatsAppConfig = async () => {
+  if (!requireAuthentication("save WhatsApp credentials")) {
+    return;
+  }
+
   whatsappSaving.value = true;
   error.value = "";
 
@@ -776,7 +1003,7 @@ const logout = async () => {
   }
 
   currentUser.value = null;
-  showAuthModal.value = true;
+  showAuthModal.value = false;
   selectedConversation.value = null;
   selectedConversationId.value = "";
   conversations.value = [];
@@ -785,9 +1012,15 @@ const logout = async () => {
   success.value = "";
   authMode.value = "login";
   resetAuthForm();
+  loadPreviewDashboard();
+  showSuccess("Logged out. Preview mode enabled.");
 };
 
 const saveConversationMeta = async () => {
+  if (!requireAuthentication("save conversation state")) {
+    return;
+  }
+
   if (!selectedConversation.value) {
     return;
   }
@@ -809,6 +1042,10 @@ const saveConversationMeta = async () => {
 };
 
 const quickSetConversationState = async (conversationId, state) => {
+  if (!requireAuthentication("change conversation state")) {
+    return;
+  }
+
   try {
     await api.updateConversation(conversationId, { state });
     await loadCrmLeads();
@@ -836,6 +1073,10 @@ const focusNextOpenConversation = () => {
 };
 
 const addNote = async () => {
+  if (!requireAuthentication("add notes")) {
+    return;
+  }
+
   if (!selectedConversation.value || !noteInput.value.trim()) {
     return;
   }
@@ -851,6 +1092,10 @@ const addNote = async () => {
 };
 
 const sendMessage = async () => {
+  if (!requireAuthentication("send messages")) {
+    return;
+  }
+
   if (!selectedConversation.value || !messageInput.value.trim()) {
     return;
   }
@@ -876,6 +1121,10 @@ const useTemplate = (template) => {
 };
 
 const createTemplate = async () => {
+  if (!requireAuthentication("create templates")) {
+    return;
+  }
+
   if (!newTemplate.name.trim() || !newTemplate.body.trim()) {
     return;
   }
@@ -898,6 +1147,10 @@ const createTemplate = async () => {
 };
 
 const saveAutomation = async () => {
+  if (!requireAuthentication("save automation settings")) {
+    return;
+  }
+
   if (automationClientErrors.value.length > 0) {
     error.value = automationClientErrors.value[0];
     return;
@@ -919,6 +1172,10 @@ const saveAutomation = async () => {
 };
 
 const submitWordPressLead = async () => {
+  if (!requireAuthentication("push leads into CRM")) {
+    return;
+  }
+
   if (!wordpressLead.phone.trim() || !wordpressLead.message.trim()) {
     return;
   }
@@ -988,6 +1245,13 @@ const openLeadFromCrm = async (conversationId) => {
 watch(
   () => [filters.state, filters.search],
   async () => {
+    if (!isAuthenticated.value) {
+      conversations.value = getFilteredPreviewConversations();
+      ensureSelectedConversation();
+      setPreviewSelectedConversation();
+      return;
+    }
+
     try {
       await loadConversations();
       await loadSelectedConversation();
@@ -998,11 +1262,22 @@ watch(
 );
 
 watch(needsAttentionOnly, async () => {
+  if (!isAuthenticated.value) {
+    ensureSelectedConversation();
+    setPreviewSelectedConversation();
+    return;
+  }
+
   ensureSelectedConversation();
   await loadSelectedConversation();
 });
 
 watch(selectedConversationId, async () => {
+  if (!isAuthenticated.value) {
+    setPreviewSelectedConversation();
+    return;
+  }
+
   try {
     await loadSelectedConversation();
   } catch (err) {
@@ -1020,7 +1295,9 @@ const initializeDashboard = async () => {
     currentUser.value = me;
     showAuthModal.value = false;
   } catch (err) {
-    showAuthModal.value = true;
+    showAuthModal.value = false;
+    currentUser.value = null;
+    loadPreviewDashboard();
     if (err?.code !== "AUTH_REQUIRED") {
       setError(err);
     }
@@ -1073,10 +1350,12 @@ onMounted(initializeDashboard);
       </div>
       <div class="hero-actions">
         <div class="connect-stack">
-          <button class="connect-whatsapp" @click="openWhatsAppModal">Connect your WhatsApp</button>
-          <small class="connection-status" :data-connected="whatsappConnected">
+          <button v-if="currentUser" class="connect-whatsapp" @click="openWhatsAppModal">Connect your WhatsApp</button>
+          <button v-else class="connect-whatsapp" @click="openLoginModal">Login</button>
+          <small v-if="currentUser" class="connection-status" :data-connected="whatsappConnected">
             {{ whatsappConnected ? "WhatsApp connected" : "WhatsApp not connected" }}
           </small>
+          <small v-else class="connection-status" data-connected="false">Preview mode</small>
         </div>
         <small v-if="currentUser" class="session-user">{{ currentUser.email }}</small>
         <button class="refresh" @click="refreshDashboard" :disabled="loading">{{ loading ? "Refreshing..." : "Refresh" }}</button>
@@ -1575,7 +1854,7 @@ onMounted(initializeDashboard);
       </section>
     </div>
 
-    <div v-if="showAuthModal" class="modal-backdrop">
+    <div v-if="showAuthModal" class="modal-backdrop" @click.self="closeAuthModal">
       <section class="modal-card auth-card">
         <h3>{{ authMode === "login" ? "Log in to your workspace" : "Create your workspace account" }}</h3>
         <p class="dim">Each account has its own WhatsApp credentials, inbox, templates, and automation settings.</p>
@@ -1604,6 +1883,7 @@ onMounted(initializeDashboard);
           />
         </label>
         <div class="modal-actions">
+          <button v-if="!currentUser" @click="closeAuthModal">Continue preview</button>
           <button @click="authMode = authMode === 'login' ? 'register' : 'login'">
             {{ authMode === "login" ? "Create account" : "I already have an account" }}
           </button>
