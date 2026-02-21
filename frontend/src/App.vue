@@ -133,6 +133,7 @@ const whatsappConfig = reactive({
   accessToken: "",
   verifyToken: ""
 });
+const whatsappLastTestAt = ref("");
 const whatsappCapabilities = reactive({
   liveMessagingReady: false,
   webhookRoutingReady: false
@@ -222,6 +223,14 @@ const onboardingSteps = computed(() => [
     action: openWhatsAppModal
   },
   {
+    id: "test",
+    title: "Test WhatsApp connection",
+    done: Boolean(whatsappLastTestAt.value),
+    hint: "Send one test from this dashboard. Without Phone number ID + Access token it runs in CRM-only mode.",
+    cta: "Run test",
+    action: runWhatsAppConnectionTest
+  },
+  {
     id: "automation",
     title: "Save automation rules",
     done: onboardingState.automationSaved,
@@ -243,6 +252,12 @@ const onboardingProgressPercent = computed(() =>
   Math.round((onboardingCompletedCount.value / onboardingSteps.value.length) * 100)
 );
 const onboardingComplete = computed(() => onboardingCompletedCount.value >= onboardingSteps.value.length);
+const onboardingButtonLabel = (step) => {
+  if (step.id === "test") {
+    return step.done ? "Re-run" : step.cta;
+  }
+  return step.done ? "Review" : step.cta;
+};
 
 const selectedMessages = computed(() => selectedConversation.value?.messages || []);
 const selectedNotes = computed(() => selectedConversation.value?.notes || []);
@@ -374,6 +389,7 @@ const applyWhatsAppConfig = (data = {}) => {
   whatsappConfig.phoneNumberId = data.phoneNumberId || "";
   whatsappConfig.verifyToken = data.verifyToken || "";
   whatsappConfig.accessToken = "";
+  whatsappLastTestAt.value = data.lastTestSentAt || "";
   whatsappConnected.value = Boolean(data.isConnected);
   whatsappCapabilities.liveMessagingReady = Boolean(
     data.liveMessagingReady ?? (data.hasAccessToken && data.phoneNumberId)
@@ -492,7 +508,8 @@ const loadPreviewDashboard = () => {
     isConnected: false,
     businessPhone: "",
     phoneNumberId: "",
-    verifyToken: ""
+    verifyToken: "",
+    lastTestSentAt: null
   });
   applyAutomationSafety({
     warnings: ["Preview mode: sign in to use real automation and WhatsApp messaging."],
@@ -955,6 +972,44 @@ const saveWhatsAppConfig = async () => {
     setError(err);
   } finally {
     whatsappSaving.value = false;
+  }
+};
+
+const runWhatsAppConnectionTest = async () => {
+  if (!requireAuthentication("run a WhatsApp connection test")) {
+    return;
+  }
+
+  const targetPhone = String(whatsappConfig.businessPhone || "").trim();
+  if (!targetPhone) {
+    error.value = "Add your business phone number first, then run test.";
+    showWhatsAppModal.value = true;
+    return;
+  }
+
+  loading.value = true;
+  error.value = "";
+
+  try {
+    const data = await api.sendWhatsAppTestMessage({
+      phone: targetPhone,
+      text: "WhatsApp connection test from CRM dashboard."
+    });
+
+    const nextConfig = await api.getWhatsAppConfig();
+    applyWhatsAppConfig(nextConfig || {});
+
+    if (data?.message?.status === "MOCKED") {
+      showSuccess("Test completed in CRM-only mode. Add Phone number ID + Access token for live WhatsApp delivery.");
+    } else if (data?.message?.status === "FAILED") {
+      error.value = "Test failed. Check Phone number ID and Access token.";
+    } else {
+      showSuccess("WhatsApp test sent.");
+    }
+  } catch (err) {
+    setError(err);
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -1430,7 +1485,7 @@ onMounted(initializeDashboard);
             <p class="setup-copy">{{ step.hint }}</p>
             <div class="setup-actions">
               <button :class="{ primary: !step.done }" @click="step.action">
-                {{ step.done ? "Review" : step.cta }}
+                {{ onboardingButtonLabel(step) }}
               </button>
               <span class="feature-label" :data-enabled="step.done">
                 {{ step.done ? "DONE" : "PENDING" }}
